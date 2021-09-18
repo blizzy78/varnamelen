@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/blizzy78/varnamelen.svg?branch=master)](https://travis-ci.org/blizzy78/varnamelen) [![Coverage Status](https://coveralls.io/repos/github/blizzy78/varnamelen/badge.svg?branch=master)](https://coveralls.io/github/blizzy78/varnamelen?branch=master) [![GoDoc](https://pkg.go.dev/badge/github.com/blizzy78/varnamelen)](https://pkg.go.dev/github.com/blizzy78/varnamelen)
+[![Build Status](https://api.travis-ci.com/blizzy78/varnamelen.svg?branch=master)](https://app.travis-ci.com/github/blizzy78/varnamelen) [![Coverage Status](https://coveralls.io/repos/github/blizzy78/varnamelen/badge.svg?branch=master)](https://coveralls.io/github/blizzy78/varnamelen?branch=master) [![GoDoc](https://pkg.go.dev/badge/github.com/blizzy78/varnamelen)](https://pkg.go.dev/github.com/blizzy78/varnamelen)
 
 
 varnamelen
