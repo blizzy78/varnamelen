@@ -32,6 +32,15 @@ type stringsValue struct {
 	Values []string
 }
 
+// variable represents a declared variable.
+type variable struct {
+	// name is the name of the variable.
+	name string
+
+	// assign is the assign statement that declares the variable.
+	assign *ast.AssignStmt
+}
+
 const (
 	// defaultMaxDistance is the default value for the maximum distance between the declaration of a variable and its usage
 	// that is considered a "small scope."
@@ -75,45 +84,46 @@ func NewAnalyzer() *analysis.Analyzer {
 
 // Run applies v to a package, according to pass.
 func (v *varNameLen) run(pass *analysis.Pass) {
-	nameToAssign, nameToDist := assignsAndDistances(pass)
-	for name, assign := range nameToAssign {
-		if len(name) >= int(v.minNameLength) {
+	varToDist := variableDistances(pass)
+	for variable, dist := range varToDist {
+		if len(variable.name) >= int(v.minNameLength) {
 			continue
 		}
-		if v.ignoreNames.contains(name) {
+		if v.ignoreNames.contains(variable.name) {
 			continue
 		}
-		if nameToDist[name] <= int(v.maxDistance) {
+		if dist <= int(v.maxDistance) {
 			continue
 		}
 
-		pass.Reportf(assign.Pos(), "variable name '%s' is too short for the scope of its usage", name)
+		pass.Reportf(variable.assign.Pos(), "variable name '%s' is too short for the scope of its usage", variable.name)
 	}
 }
 
-// assignsAndDistances returns a map of variable names to assign statements, and a map of
-// variable names to the longest usage distances. Both maps will have the same keys.
-func assignsAndDistances(pass *analysis.Pass) (map[string]*ast.AssignStmt, map[string]int) {
+// variableDistances returns a map of variables and their longest usage distances.
+func variableDistances(pass *analysis.Pass) map[variable]int {
 	idents := identsReferencingAssigns(pass)
 
-	nameToAssign := map[string]*ast.AssignStmt{}
-	nameToDist := map[string]int{}
+	varToDist := map[variable]int{}
 
 	for _, ident := range idents {
-		useLine := pass.Fset.Position(ident.NamePos).Line
 		assign := ident.Obj.Decl.(*ast.AssignStmt)
-		declLine := pass.Fset.Position(assign.Pos()).Line
+		variable := variable{
+			name:   ident.Name,
+			assign: assign,
+		}
 
+		useLine := pass.Fset.Position(ident.NamePos).Line
+		declLine := pass.Fset.Position(assign.Pos()).Line
 		dist := useLine - declLine
-		if dist <= nameToDist[ident.Name] {
+		if dist <= varToDist[variable] {
 			continue
 		}
 
-		nameToAssign[ident.Name] = assign
-		nameToDist[ident.Name] = dist
+		varToDist[variable] = dist
 	}
 
-	return nameToAssign, nameToDist
+	return varToDist
 }
 
 // identsReferencingAssigns returns all Idents in pass that reference assign statements.

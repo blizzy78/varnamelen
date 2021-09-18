@@ -10,8 +10,8 @@
 			"request": "launch",
 			"mode": "debug",
 			"program": "${workspaceFolder}/cmd",
-			"cwd": "${workspaceFolder}",
-			"args": ["./..."]
+			"cwd": "${workspaceFolder}/testdata/src/test",
+			"args": ["."]
 		}
 	]
 }
