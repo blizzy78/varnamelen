@@ -1,5 +1,10 @@
 package main
 
+import (
+	"context"
+	"testing"
+)
+
 type test struct {
 	x int
 }
@@ -58,4 +63,19 @@ func (t *test) foo() {
 	t.x++
 	t.x++
 	t.x++
+}
+
+func Conventionals(ctx context.Context, t *testing.T, b *testing.B, tb testing.TB, m *testing.M, pb *testing.PB) {
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	t.Fail()
+	b.Fail()
+	tb.Fail()
+	m.Run()
+	pb.Next()
+	ctx.Err()
 }

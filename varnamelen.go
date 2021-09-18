@@ -107,6 +107,9 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 	}
 
 	for param, dist := range paramToDist {
+		if param.isConventional() {
+			continue
+		}
 		if v.checkNameAndDistance(param.name, dist) {
 			continue
 		}
@@ -284,4 +287,56 @@ func (sv *stringsValue) contains(s string) bool {
 		}
 	}
 	return false
+}
+
+// isConventional returns true when p is a conventional Go parameter, such as "ctx context.Context" or
+// "t *testing.T".
+func (p parameter) isConventional() bool { //nolint:gocyclo,gocognit
+	switch {
+	case p.name == "t" && p.isPointerType("testing.T"):
+		return true
+	case p.name == "b" && p.isPointerType("testing.B"):
+		return true
+	case p.name == "tb" && p.isType("testing.TB"):
+		return true
+	case p.name == "pb" && p.isPointerType("testing.PB"):
+		return true
+	case p.name == "m" && p.isPointerType("testing.M"):
+		return true
+	case p.name == "ctx" && p.isType("context.Context"):
+		return true
+	default:
+		return false
+	}
+}
+
+// isType returns true when p is of type typeName.
+func (p parameter) isType(typeName string) bool {
+	sel, ok := p.field.Type.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	return isType(sel, typeName)
+}
+
+// isPointerType returns true when p is a pointer type of type typeName.
+func (p parameter) isPointerType(typeName string) bool {
+	star, ok := p.field.Type.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := star.X.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	return isType(sel, typeName)
+}
+
+// isType returns true when sel is a selector for type typeName.
+func isType(sel *ast.SelectorExpr, typeName string) bool {
+	ident, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	return typeName == ident.Name+"."+sel.Sel.Name
 }

@@ -10,6 +10,7 @@ import (
 
 func TestVarNameLen_Run(t *testing.T) {
 	a := NewAnalyzer()
+	a.Flags.Set("minNameLength", "4")
 	a.Flags.Set("ignoreNames", "i,ip")
 
 	wd, _ := os.Getwd()
@@ -18,6 +19,7 @@ func TestVarNameLen_Run(t *testing.T) {
 
 func TestVarNameLen_Run_CheckReceiver(t *testing.T) {
 	a := NewAnalyzer()
+	a.Flags.Set("minNameLength", "4")
 	a.Flags.Set("checkReceiver", "true")
 
 	wd, _ := os.Getwd()
@@ -26,6 +28,7 @@ func TestVarNameLen_Run_CheckReceiver(t *testing.T) {
 
 func TestVarNameLen_Run_CheckReturn(t *testing.T) {
 	a := NewAnalyzer()
+	a.Flags.Set("minNameLength", "4")
 	a.Flags.Set("ignoreNames", "i")
 	a.Flags.Set("checkReturn", "true")
 

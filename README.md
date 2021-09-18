@@ -11,6 +11,8 @@ A longer variable name may be easier to comprehend.
 
 The analyzer can check variable names, method receiver names, as well as named return values.
 
+Conventional Go parameters such as `ctx context.Context` or `t *testing.T` will always be ignored.
+
 **Example output**
 
 ```
