@@ -9,6 +9,17 @@ A Go Analyzer checking that the length of a variable's name matches its usage sc
 A variable with a short name can be hard to use if the variable is used over a longer span of lines of code.
 A longer variable name may be easier to comprehend.
 
+**Example output**
+
+```
+test.go:4:2: variable name 'x' is too short for the scope of its usage (varnamelen)
+        x := 123
+        ^
+test.go:6:2: variable name 'i' is too short for the scope of its usage (varnamelen)
+        i := 10
+        ^
+```
+
 
 Standalone Usage
 ----------------
@@ -19,7 +30,7 @@ The `cmd/` folder provides a standalone command line utility. You can build it l
 go build -o varnamelen ./cmd/
 ```
 
-Usage:
+**Usage**
 
 ```
 varnamelen: checks that the length of a variable's name matches its scope
@@ -62,3 +73,9 @@ Flags:
         write trace log to this file
   -v    no effect (deprecated)
 ```
+
+
+License
+-------
+
+This package is licensed under the MIT license.
