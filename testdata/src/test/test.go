@@ -1,6 +1,12 @@
 package main
 
-func test() {
+type test struct {
+	x int
+}
+
+func foo(p int, p2 int, ip int, longParam int) (rv string) { // want "parameter name 'p' is too short for the scope of its usage"
+	p2 += longParam
+
 	x := 123 // want "variable name 'x' is too short for the scope of its usage"
 	aLongOne := 555
 	i := 10
@@ -28,4 +34,28 @@ func test() {
 		y++
 		y++
 	}
+
+	for idx := range ints {
+		p := idx // want "variable name 'p' is too short for the scope of its usage"
+		p++
+		p++
+		p++
+		p++
+		p++
+		p++
+	}
+
+	p += ip
+
+	rv = "foo"
+	return
+}
+
+func (t *test) foo() {
+	t.x++
+	t.x++
+	t.x++
+	t.x++
+	t.x++
+	t.x++
 }

@@ -10,30 +10,27 @@ import (
 
 func TestVarNameLen_Run(t *testing.T) {
 	a := NewAnalyzer()
-	a.Flags.Set("ignoreNames", "i")
+	a.Flags.Set("ignoreNames", "i,ip")
 
 	wd, _ := os.Getwd()
 	analysistest.Run(t, wd+"/testdata", a, "test")
 }
 
-func TestIntValue_Set(t *testing.T) {
-	is := is.New(t)
-	v := intValue(0)
-	v.Set("123")
-	is.Equal(int(v), 123)
+func TestVarNameLen_Run_CheckReceiver(t *testing.T) {
+	a := NewAnalyzer()
+	a.Flags.Set("checkReceiver", "true")
+
+	wd, _ := os.Getwd()
+	analysistest.Run(t, wd+"/testdata", a, "receiver")
 }
 
-func TestIntValue_Set_Error(t *testing.T) {
-	is := is.New(t)
-	v := intValue(0)
-	is.True(v.Set("") != nil)
-	is.True(v.Set("test") != nil)
-}
+func TestVarNameLen_Run_CheckReturn(t *testing.T) {
+	a := NewAnalyzer()
+	a.Flags.Set("ignoreNames", "i")
+	a.Flags.Set("checkReturn", "true")
 
-func TestIntValue_String(t *testing.T) {
-	is := is.New(t)
-	v := intValue(123)
-	is.Equal(v.String(), "123")
+	wd, _ := os.Getwd()
+	analysistest.Run(t, wd+"/testdata", a, "return")
 }
 
 func TestStringsValue_Set(t *testing.T) {
