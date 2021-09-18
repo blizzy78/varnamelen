@@ -32,7 +32,6 @@ linters:
     - unconvert
     - unparam
     - wastedassign
-    - whitespace
     - wrapcheck
     - wsl
 
@@ -46,3 +45,5 @@ linters-settings:
     allow-leading-space: false
     require-explanation: true
     require-specific: true
+  unused:
+    go: 1.15
