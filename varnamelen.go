@@ -103,6 +103,7 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 		if v.checkNameAndDistance(variable.name, dist) {
 			continue
 		}
+
 		pass.Reportf(variable.assign.Pos(), "variable name '%s' is too short for the scope of its usage", variable.name)
 	}
 
@@ -110,9 +111,11 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 		if param.isConventional() {
 			continue
 		}
+
 		if v.checkNameAndDistance(param.name, dist) {
 			continue
 		}
+
 		pass.Reportf(param.field.Pos(), "parameter name '%s' is too short for the scope of its usage", param.name)
 	}
 
@@ -120,6 +123,7 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 		if v.checkNameAndDistance(param.name, dist) {
 			continue
 		}
+
 		pass.Reportf(param.field.Pos(), "return value name '%s' is too short for the scope of its usage", param.name)
 	}
 }
@@ -129,12 +133,15 @@ func (v *varNameLen) checkNameAndDistance(name string, dist int) bool {
 	if len(name) >= v.minNameLength {
 		return true
 	}
+
 	if dist <= v.maxDistance {
 		return true
 	}
+
 	if v.ignoreNames.contains(name) {
 		return true
 	}
+
 	return false
 }
 
@@ -145,7 +152,7 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 	varToDist := map[variable]int{}
 
 	for _, ident := range assignIdents {
-		assign := ident.Obj.Decl.(*ast.AssignStmt)
+		assign := ident.Obj.Decl.(*ast.AssignStmt) //nolint:forcetypeassert // check is done in idents()
 		variable := variable{
 			name:   ident.Name,
 			assign: assign,
@@ -159,7 +166,7 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 	paramToDist := map[parameter]int{}
 
 	for _, ident := range paramIdents {
-		field := ident.Obj.Decl.(*ast.Field)
+		field := ident.Obj.Decl.(*ast.Field) //nolint:forcetypeassert // check is done in idents()
 		param := parameter{
 			name:  ident.Name,
 			field: field,
@@ -173,7 +180,7 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 	returnToDist := map[parameter]int{}
 
 	for _, ident := range returnIdents {
-		field := ident.Obj.Decl.(*ast.Field)
+		field := ident.Obj.Decl.(*ast.Field) //nolint:forcetypeassert // check is done in idents()
 		param := parameter{
 			name:  ident.Name,
 			field: field,
@@ -188,12 +195,12 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 }
 
 // idents returns Idents referencing assign statements, parameters, and return values, respectively.
-func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []*ast.Ident) { //nolint:gocognit
-	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []*ast.Ident) { //nolint:gocognit // this is complex stuff
+	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector) //nolint:forcetypeassert // inspect.Analyzer always returns *inspector.Inspector
 
 	filter := []ast.Node{
-		(*ast.Ident)(nil),
 		(*ast.FuncDecl)(nil),
+		(*ast.Ident)(nil),
 	}
 
 	funcs := []*ast.FuncDecl{}
@@ -211,7 +218,7 @@ func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []
 			return
 		}
 
-		ident := node.(*ast.Ident)
+		ident := node.(*ast.Ident) //nolint:forcetypeassert // see filter
 		if ident.Obj == nil {
 			return
 		}
@@ -250,6 +257,7 @@ func isReceiver(field *ast.Field, methods []*ast.FuncDecl) bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -259,12 +267,14 @@ func isReturn(field *ast.Field, funcs []*ast.FuncDecl) bool {
 		if f.Type.Results == nil {
 			continue
 		}
+
 		for _, r := range f.Type.Results.List {
 			if r == field {
 				return true
 			}
 		}
 	}
+
 	return false
 }
 
@@ -286,12 +296,13 @@ func (sv *stringsValue) contains(s string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
 // isConventional returns true when p is a conventional Go parameter, such as "ctx context.Context" or
 // "t *testing.T".
-func (p parameter) isConventional() bool { //nolint:gocyclo,gocognit
+func (p parameter) isConventional() bool { //nolint:cyclop // it's not as complicated as it looks
 	switch {
 	case p.name == "t" && p.isPointerType("testing.T"):
 		return true
@@ -316,6 +327,7 @@ func (p parameter) isType(typeName string) bool {
 	if !ok {
 		return false
 	}
+
 	return isType(sel, typeName)
 }
 
@@ -325,10 +337,12 @@ func (p parameter) isPointerType(typeName string) bool {
 	if !ok {
 		return false
 	}
+
 	sel, ok := star.X.(*ast.SelectorExpr)
 	if !ok {
 		return false
 	}
+
 	return isType(sel, typeName)
 }
 
@@ -338,5 +352,6 @@ func isType(sel *ast.SelectorExpr, typeName string) bool {
 	if !ok {
 		return false
 	}
+
 	return typeName == ident.Name+"."+sel.Sel.Name
 }

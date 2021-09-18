@@ -10,8 +10,8 @@ import (
 
 func TestVarNameLen_Run(t *testing.T) {
 	a := NewAnalyzer()
-	a.Flags.Set("minNameLength", "4")
-	a.Flags.Set("ignoreNames", "i,ip")
+	_ = a.Flags.Set("minNameLength", "4")
+	_ = a.Flags.Set("ignoreNames", "i,ip")
 
 	wd, _ := os.Getwd()
 	analysistest.Run(t, wd+"/testdata", a, "test")
@@ -19,27 +19,27 @@ func TestVarNameLen_Run(t *testing.T) {
 
 func TestVarNameLen_Run_CheckReceiver(t *testing.T) {
 	a := NewAnalyzer()
-	a.Flags.Set("minNameLength", "4")
-	a.Flags.Set("checkReceiver", "true")
+	_ = a.Flags.Set("minNameLength", "4")
+	_ = a.Flags.Set("checkReceiver", "true")
 
 	wd, _ := os.Getwd()
 	analysistest.Run(t, wd+"/testdata", a, "receiver")
 }
 
 func TestVarNameLen_Run_CheckReturn(t *testing.T) {
-	a := NewAnalyzer()
-	a.Flags.Set("minNameLength", "4")
-	a.Flags.Set("ignoreNames", "i")
-	a.Flags.Set("checkReturn", "true")
+	analyzer := NewAnalyzer()
+	_ = analyzer.Flags.Set("minNameLength", "4")
+	_ = analyzer.Flags.Set("ignoreNames", "i")
+	_ = analyzer.Flags.Set("checkReturn", "true")
 
 	wd, _ := os.Getwd()
-	analysistest.Run(t, wd+"/testdata", a, "return")
+	analysistest.Run(t, wd+"/testdata", analyzer, "return")
 }
 
 func TestStringsValue_Set(t *testing.T) {
 	is := is.New(t)
 	v := stringsValue{}
-	v.Set("foo,bar,baz")
+	_ = v.Set("foo,bar,baz")
 	is.Equal(v.Values, []string{"foo", "bar", "baz"})
 }
 
