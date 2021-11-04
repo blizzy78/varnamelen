@@ -27,6 +27,9 @@ type varNameLen struct {
 
 	// checkReturn determines whether named return values should be checked.
 	checkReturn bool
+
+	// ignoreTypeAssertOk determines whether "ok" variables that hold the bool return value of a type assertion should be ignored.
+	ignoreTypeAssertOk bool
 }
 
 // stringsValue is the value of a list-of-strings flag.
@@ -91,6 +94,7 @@ func NewAnalyzer() *analysis.Analyzer {
 	analyzer.Flags.Var(&vnl.ignoreNames, "ignoreNames", "comma-separated list of ignored variable names")
 	analyzer.Flags.BoolVar(&vnl.checkReceiver, "checkReceiver", false, "check method receiver names")
 	analyzer.Flags.BoolVar(&vnl.checkReturn, "checkReturn", false, "check named return values")
+	analyzer.Flags.BoolVar(&vnl.ignoreTypeAssertOk, "ignoreTypeAssertOk", false, "ignore 'ok' variables that hold the bool return value of a type assertion")
 
 	return &analyzer
 }
@@ -101,6 +105,10 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 
 	for variable, dist := range varToDist {
 		if v.checkNameAndDistance(variable.name, dist) {
+			continue
+		}
+
+		if v.checkTypeAssertOk(variable) {
 			continue
 		}
 
@@ -128,7 +136,7 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 	}
 }
 
-// checkNameAndDistance returns true when name or dist are considered "short", or when name is to be ignored.
+// checkNameAndDistance returns true if name or dist are considered "short", or if name is to be ignored.
 func (v *varNameLen) checkNameAndDistance(name string, dist int) bool {
 	if len(name) >= v.minNameLength {
 		return true
@@ -143,6 +151,12 @@ func (v *varNameLen) checkNameAndDistance(name string, dist int) bool {
 	}
 
 	return false
+}
+
+// checkTypeAssertOk returns true if "ok" variables that hold the bool return value of a type assertion
+// should be ignored, and if vari is such a variable.
+func (v *varNameLen) checkTypeAssertOk(vari variable) bool {
+	return v.ignoreTypeAssertOk && vari.isTypeAssertOk()
 }
 
 // distances maps of variables or parameters and their longest usage distances.
@@ -248,7 +262,36 @@ func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []
 	return assignIdents, paramIdents, returnIdents
 }
 
-// isReceiver returns true when field is a receiver parameter of any of the given methods.
+// isTypeAssertOk returns true if v is an "ok" variable that holds the bool return value of a type assertion.
+func (v variable) isTypeAssertOk() bool {
+	if v.name != "ok" {
+		return false
+	}
+
+	if len(v.assign.Lhs) != 2 {
+		return false
+	}
+
+	if _, ok := v.assign.Lhs[1].(*ast.Ident); !ok {
+		return false
+	}
+
+	if v.assign.Lhs[1].(*ast.Ident).Name != "ok" {
+		return false
+	}
+
+	if len(v.assign.Rhs) != 1 {
+		return false
+	}
+
+	if _, ok := v.assign.Rhs[0].(*ast.TypeAssertExpr); !ok {
+		return false
+	}
+
+	return true
+}
+
+// isReceiver returns true if field is a receiver parameter of any of the given methods.
 func isReceiver(field *ast.Field, methods []*ast.FuncDecl) bool {
 	for _, m := range methods {
 		for _, recv := range m.Recv.List {
@@ -261,7 +304,7 @@ func isReceiver(field *ast.Field, methods []*ast.FuncDecl) bool {
 	return false
 }
 
-// isReturn returns true when field is a return value of any of the given funcs.
+// isReturn returns true if field is a return value of any of the given funcs.
 func isReturn(field *ast.Field, funcs []*ast.FuncDecl) bool {
 	for _, f := range funcs {
 		if f.Type.Results == nil {
@@ -289,7 +332,7 @@ func (sv *stringsValue) String() string {
 	return strings.Join(sv.Values, ",")
 }
 
-// contains returns true when sv contains s.
+// contains returns true if sv contains s.
 func (sv *stringsValue) contains(s string) bool {
 	for _, v := range sv.Values {
 		if v == s {
@@ -300,7 +343,7 @@ func (sv *stringsValue) contains(s string) bool {
 	return false
 }
 
-// isConventional returns true when p is a conventional Go parameter, such as "ctx context.Context" or
+// isConventional returns true if p is a conventional Go parameter, such as "ctx context.Context" or
 // "t *testing.T".
 func (p parameter) isConventional() bool { //nolint:cyclop // it's not as complicated as it looks
 	switch {
@@ -321,7 +364,7 @@ func (p parameter) isConventional() bool { //nolint:cyclop // it's not as compli
 	}
 }
 
-// isType returns true when p is of type typeName.
+// isType returns true if p is of type typeName.
 func (p parameter) isType(typeName string) bool {
 	sel, ok := p.field.Type.(*ast.SelectorExpr)
 	if !ok {
@@ -331,7 +374,7 @@ func (p parameter) isType(typeName string) bool {
 	return isType(sel, typeName)
 }
 
-// isPointerType returns true when p is a pointer type of type typeName.
+// isPointerType returns true if p is a pointer type of type typeName.
 func (p parameter) isPointerType(typeName string) bool {
 	star, ok := p.field.Type.(*ast.StarExpr)
 	if !ok {
@@ -346,7 +389,7 @@ func (p parameter) isPointerType(typeName string) bool {
 	return isType(sel, typeName)
 }
 
-// isType returns true when sel is a selector for type typeName.
+// isType returns true if sel is a selector for type typeName.
 func isType(sel *ast.SelectorExpr, typeName string) bool {
 	ident, ok := sel.X.(*ast.Ident)
 	if !ok {

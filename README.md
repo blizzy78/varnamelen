@@ -65,6 +65,8 @@ Flags:
     	print analyzer flags in JSON
   -ignoreNames value
     	comma-separated list of ignored variable names
+  -ignoreTypeAssertOk
+    	ignore 'ok' variables that hold the bool return value of a type assertion
   -json
     	emit JSON output
   -maxDistance int
