@@ -61,7 +61,7 @@ linters-settings:
       - t testing.T
       - f *foo.Bar
       - e error
-	  - i int
+      - i int
 ```
 
 
