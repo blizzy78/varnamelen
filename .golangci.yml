@@ -48,3 +48,8 @@ linters-settings:
     require-specific: true
   unused:
     go: 1.15
+  varnamelen:
+    check-return: true
+    ignore-type-assert-ok: true
+    ignore-map-index-ok: true
+    ignore-chan-recv-ok: true

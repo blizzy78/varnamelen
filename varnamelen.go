@@ -329,7 +329,7 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 }
 
 // idents returns Idents referencing assign statements, value specifications, parameters, and return values, respectively.
-func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []*ast.Ident, []*ast.Ident) { //nolint:gocognit // this is complex stuff
+func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []*ast.Ident, []*ast.Ident) { //nolint:gocognit,cyclop // this is complex stuff
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector) //nolint:forcetypeassert // inspect.Analyzer always returns *inspector.Inspector
 
 	filter := []ast.Node{
@@ -537,13 +537,13 @@ func isReturn(field *ast.Field, funcs []*ast.FuncDecl) bool {
 }
 
 // Set implements Value.
-func (sv *stringsValue) Set(s string) error {
-	if strings.TrimSpace(s) == "" {
+func (sv *stringsValue) Set(values string) error {
+	if strings.TrimSpace(values) == "" {
 		sv.Values = nil
 		return nil
 	}
 
-	parts := strings.Split(s, ",")
+	parts := strings.Split(values, ",")
 
 	sv.Values = make([]string, len(parts))
 
@@ -571,23 +571,23 @@ func (sv *stringsValue) contains(s string) bool {
 }
 
 // Set implements Value.
-func (dv *declarationsValue) Set(s string) error {
-	if strings.TrimSpace(s) == "" {
+func (dv *declarationsValue) Set(values string) error {
+	if strings.TrimSpace(values) == "" {
 		dv.Values = nil
 		return nil
 	}
 
-	parts := strings.Split(s, ",")
+	parts := strings.Split(values, ",")
 
 	dv.Values = make([]declaration, len(parts))
 
-	for i, part := range parts {
+	for idx, part := range parts {
 		decl, ok := parseDeclaration(strings.TrimSpace(part))
 		if !ok {
 			return fmt.Errorf("%s: %w", part, errInvalidDeclaration)
 		}
 
-		dv.Values[i] = decl
+		dv.Values[idx] = decl
 	}
 
 	return nil
@@ -597,21 +597,22 @@ func (dv *declarationsValue) Set(s string) error {
 func (dv *declarationsValue) String() string {
 	parts := make([]string, len(dv.Values))
 
-	for i, v := range dv.Values {
-		part := v.name + " "
+	for idx, val := range dv.Values {
+		part := val.name + " "
 
-		if v.pointer {
+		if val.pointer {
 			part += "*"
 		}
 
-		part += v.typ
+		part += val.typ
 
-		parts[i] = part
+		parts[idx] = part
 	}
 
 	return strings.Join(parts, ",")
 }
 
+// matchVariable returns true if vari matches any of the declarations in dv.
 func (dv *declarationsValue) matchVariable(vari variable) bool {
 	for _, decl := range dv.Values {
 		if vari.match(decl) {
@@ -665,18 +666,18 @@ func mustParseDeclaration(decl string) declaration {
 }
 
 // parseDeclaration parses and returns a variable declaration parsed from decl.
-func parseDeclaration(decl string) (declaration, bool) {
+func parseDeclaration(decl string) (declaration, bool) { //nolint:cyclop // this is complex stuff
 	funcExpr, err := parser.ParseExpr("func(" + decl + ") {}")
 	if err != nil {
 		return declaration{}, false
 	}
 
-	funcDecl, ok := funcExpr.(*ast.FuncLit)
+	funcLit, ok := funcExpr.(*ast.FuncLit)
 	if !ok {
 		return declaration{}, false
 	}
 
-	params := funcDecl.Type.Params.List
+	params := funcLit.Type.Params.List
 	if len(params) != 1 {
 		return declaration{}, false
 	}
@@ -685,25 +686,25 @@ func parseDeclaration(decl string) (declaration, bool) {
 		return declaration{}, false
 	}
 
-	var expr ast.Expr
+	var typeExpr ast.Expr
 
 	pointer := false
 
-	switch typeExpr := params[0].Type.(type) {
+	switch typeEx := params[0].Type.(type) {
 	case *ast.StarExpr:
-		expr = typeExpr.X
+		typeExpr = typeEx.X
 		pointer = true
 	case *ast.SelectorExpr:
-		expr = typeExpr
+		typeExpr = typeEx
 	case *ast.Ident:
-		expr = typeExpr
+		typeExpr = typeEx
 	default:
 		return declaration{}, false
 	}
 
-	switch ex := expr.(type) {
+	switch typeEx := typeExpr.(type) {
 	case *ast.SelectorExpr:
-		selIdent, ok := ex.X.(*ast.Ident)
+		selIdent, ok := typeEx.X.(*ast.Ident)
 		if !ok {
 			return declaration{}, false
 		}
@@ -711,14 +712,14 @@ func parseDeclaration(decl string) (declaration, bool) {
 		return declaration{
 			name:    params[0].Names[0].Name,
 			pointer: pointer,
-			typ:     selIdent.Name + "." + ex.Sel.Name,
+			typ:     selIdent.Name + "." + typeEx.Sel.Name,
 		}, true
 
 	case *ast.Ident:
 		return declaration{
 			name:    params[0].Names[0].Name,
 			pointer: pointer,
-			typ:     ex.Name,
+			typ:     typeEx.Name,
 		}, true
 
 	default:
@@ -728,7 +729,7 @@ func parseDeclaration(decl string) (declaration, bool) {
 
 // matchType returns true if typ matches d.typ.
 func (d declaration) matchType(typ ast.Expr) bool {
-	var expr ast.Expr
+	var typeExpr ast.Expr
 
 	if d.pointer {
 		star, ok := typ.(*ast.StarExpr)
@@ -736,22 +737,22 @@ func (d declaration) matchType(typ ast.Expr) bool {
 			return false
 		}
 
-		expr = star.X
+		typeExpr = star.X
 	} else {
-		expr = typ
+		typeExpr = typ
 	}
 
-	switch ex := expr.(type) {
+	switch typeEx := typeExpr.(type) {
 	case *ast.Ident:
-		return ex.Name == d.typ
+		return typeEx.Name == d.typ
 
 	case *ast.SelectorExpr:
-		ident, ok := ex.X.(*ast.Ident)
+		ident, ok := typeEx.X.(*ast.Ident)
 		if !ok {
 			return false
 		}
 
-		return ident.Name+"."+ex.Sel.Name == d.typ
+		return ident.Name+"."+typeEx.Sel.Name == d.typ
 
 	default:
 		return false
