@@ -62,6 +62,9 @@ type variable struct {
 
 	// assign is the assign statement that declares the variable.
 	assign *ast.AssignStmt
+
+	// valueSpec is the value specification that declares the variable.
+	valueSpec *ast.ValueSpec
 }
 
 // parameter represents a declared function or method parameter.
@@ -182,7 +185,12 @@ func (v *varNameLen) checkVariables(pass *analysis.Pass, varToDist map[variable]
 			continue
 		}
 
-		pass.Reportf(variable.assign.Pos(), "variable name '%s' is too short for the scope of its usage", variable.name)
+		if variable.assign != nil {
+			pass.Reportf(variable.assign.Pos(), "variable name '%s' is too short for the scope of its usage", variable.name)
+			continue
+		}
+
+		pass.Reportf(variable.valueSpec.Pos(), "variable name '%s' is too short for the scope of its usage", variable.name)
 	}
 }
 
@@ -261,7 +269,7 @@ func (v *varNameLen) checkChannelReceiveOk(vari variable) bool {
 
 // distances maps of variables or parameters and their longest usage distances.
 func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[parameter]int, map[parameter]int) {
-	assignIdents, paramIdents, returnIdents := v.idents(pass)
+	assignIdents, valueSpecIdents, paramIdents, returnIdents := v.idents(pass)
 
 	varToDist := map[variable]int{}
 
@@ -274,6 +282,18 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 
 		useLine := pass.Fset.Position(ident.NamePos).Line
 		declLine := pass.Fset.Position(assign.Pos()).Line
+		varToDist[variable] = useLine - declLine
+	}
+
+	for _, ident := range valueSpecIdents {
+		valueSpec := ident.Obj.Decl.(*ast.ValueSpec) //nolint:forcetypeassert // check is done in idents()
+		variable := variable{
+			name:      ident.Name,
+			valueSpec: valueSpec,
+		}
+
+		useLine := pass.Fset.Position(ident.NamePos).Line
+		declLine := pass.Fset.Position(valueSpec.Pos()).Line
 		varToDist[variable] = useLine - declLine
 	}
 
@@ -308,8 +328,8 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 	return varToDist, paramToDist, returnToDist
 }
 
-// idents returns Idents referencing assign statements, parameters, and return values, respectively.
-func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []*ast.Ident) { //nolint:gocognit // this is complex stuff
+// idents returns Idents referencing assign statements, value specifications, parameters, and return values, respectively.
+func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []*ast.Ident, []*ast.Ident) { //nolint:gocognit // this is complex stuff
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector) //nolint:forcetypeassert // inspect.Analyzer always returns *inspector.Inspector
 
 	filter := []ast.Node{
@@ -319,7 +339,9 @@ func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []
 
 	funcs := []*ast.FuncDecl{}
 	methods := []*ast.FuncDecl{}
+
 	assignIdents := []*ast.Ident{}
+	valueSpecIdents := []*ast.Ident{}
 	paramIdents := []*ast.Ident{}
 	returnIdents := []*ast.Ident{}
 
@@ -337,17 +359,19 @@ func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []
 			return
 		}
 
-		if _, ok := ident.Obj.Decl.(*ast.AssignStmt); ok {
+		switch objDecl := ident.Obj.Decl.(type) {
+		case *ast.AssignStmt:
 			assignIdents = append(assignIdents, ident)
-			return
-		}
 
-		if field, ok := ident.Obj.Decl.(*ast.Field); ok {
-			if isReceiver(field, methods) && !v.checkReceiver {
+		case *ast.ValueSpec:
+			valueSpecIdents = append(valueSpecIdents, ident)
+
+		case *ast.Field:
+			if isReceiver(objDecl, methods) && !v.checkReceiver {
 				return
 			}
 
-			if isReturn(field, funcs) {
+			if isReturn(objDecl, funcs) {
 				if !v.checkReturn {
 					return
 				}
@@ -359,11 +383,15 @@ func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []
 		}
 	})
 
-	return assignIdents, paramIdents, returnIdents
+	return assignIdents, valueSpecIdents, paramIdents, returnIdents
 }
 
 // isTypeAssertOk returns true if v is an "ok" variable that holds the bool return value of a type assertion.
 func (v variable) isTypeAssertOk() bool {
+	if v.assign == nil {
+		return false
+	}
+
 	if v.name != "ok" {
 		return false
 	}
@@ -394,6 +422,10 @@ func (v variable) isTypeAssertOk() bool {
 
 // isMapIndexOk returns true if v is an "ok" variable that holds the bool return value of a map index.
 func (v variable) isMapIndexOk() bool {
+	if v.assign == nil {
+		return false
+	}
+
 	if v.name != "ok" {
 		return false
 	}
@@ -424,6 +456,10 @@ func (v variable) isMapIndexOk() bool {
 
 // isChannelReceiveOk returns true if v is an "ok" variable that holds the bool return value of a channel receive.
 func (v variable) isChannelReceiveOk() bool {
+	if v.assign == nil {
+		return false
+	}
+
 	if v.name != "ok" {
 		return false
 	}
@@ -457,8 +493,17 @@ func (v variable) isChannelReceiveOk() bool {
 	return true
 }
 
+// match returns true if v matches decl.
 func (v variable) match(decl declaration) bool {
-	return false
+	if v.valueSpec == nil {
+		return false
+	}
+
+	if v.name != decl.name {
+		return false
+	}
+
+	return decl.matchType(v.valueSpec.Type)
 }
 
 // isReceiver returns true if field is a receiver parameter of any of the given methods.
@@ -594,38 +639,10 @@ func (p parameter) match(decl declaration) bool {
 		return false
 	}
 
-	var sel *ast.SelectorExpr
-
-	if decl.pointer {
-		star, ok := p.field.Type.(*ast.StarExpr)
-		if !ok {
-			return false
-		}
-
-		sel, ok = star.X.(*ast.SelectorExpr)
-		if !ok {
-			return false
-		}
-	} else {
-		var ok bool
-		sel, ok = p.field.Type.(*ast.SelectorExpr)
-		if !ok {
-			return false
-		}
-	}
-
-	selIdent, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return false
-	}
-
-	if selIdent.Name+"."+sel.Sel.Name != decl.typ {
-		return false
-	}
-
-	return true
+	return decl.matchType(p.field.Type)
 }
 
+// mustParseDeclaration works like parseDeclaration, but panics if no variable declaration can be parsed.
 func mustParseDeclaration(decl string) declaration {
 	dcl, ok := parseDeclaration(decl)
 	if !ok {
@@ -635,6 +652,7 @@ func mustParseDeclaration(decl string) declaration {
 	return dcl
 }
 
+// parseDeclaration parses and returns a variable declaration parsed from decl.
 func parseDeclaration(decl string) (declaration, bool) {
 	expr, err := parser.ParseExpr("func(" + decl + ") {}")
 	if err != nil {
@@ -687,4 +705,38 @@ func parseDeclaration(decl string) (declaration, bool) {
 		pointer: pointer,
 		typ:     selIdent.Name + "." + sel.Sel.Name,
 	}, true
+}
+
+// matchType returns true if typ matches d.typ.
+func (d declaration) matchType(typ ast.Expr) bool {
+	var sel *ast.SelectorExpr
+
+	if d.pointer {
+		star, ok := typ.(*ast.StarExpr)
+		if !ok {
+			return false
+		}
+
+		sel, ok = star.X.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+	} else {
+		var ok bool
+		sel, ok = typ.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+	}
+
+	selIdent, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+
+	if selIdent.Name+"."+sel.Sel.Name != d.typ {
+		return false
+	}
+
+	return true
 }

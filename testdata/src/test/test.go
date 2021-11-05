@@ -54,6 +54,15 @@ func foo(p int, p2 int, ip int, longParam int) (rv string) { // want "parameter 
 
 	rv = "foo"
 
+	var z int // want "variable name 'z' is too short for the scope of its usage"
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println(z)
+
 	return
 }
 

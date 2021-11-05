@@ -1,9 +1,9 @@
 package main
 
 func foo() {
-	var x interface{}
+	var something interface{}
 
-	str, ok := x.(string)
+	str, ok := something.(string)
 	println(str)
 	println()
 	println()
@@ -13,7 +13,7 @@ func foo() {
 	println(ok)
 
 	var i int
-	i, ok = x.(int)
+	i, ok = something.(int)
 	println(i)
 	println()
 	println()
@@ -24,9 +24,9 @@ func foo() {
 }
 
 func foo2() {
-	var x interface{}
+	var something interface{}
 
-	if _, ok := x.(string); ok {
+	if _, ok := something.(string); ok {
 		println()
 		println()
 		println()
