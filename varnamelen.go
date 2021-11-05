@@ -112,6 +112,13 @@ func NewAnalyzer() *analysis.Analyzer {
 func (v *varNameLen) run(pass *analysis.Pass) {
 	varToDist, paramToDist, returnToDist := v.distances(pass)
 
+	v.checkVariables(pass, varToDist)
+	v.checkParams(pass, paramToDist)
+	v.checkReturns(pass, returnToDist)
+}
+
+// checkVariables applies v to variables in varToDist.
+func (v *varNameLen) checkVariables(pass *analysis.Pass, varToDist map[variable]int) {
 	for variable, dist := range varToDist {
 		if v.checkNameAndDistance(variable.name, dist) {
 			continue
@@ -131,7 +138,10 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 
 		pass.Reportf(variable.assign.Pos(), "variable name '%s' is too short for the scope of its usage", variable.name)
 	}
+}
 
+// checkParams applies v to parameters in paramToDist.
+func (v *varNameLen) checkParams(pass *analysis.Pass, paramToDist map[parameter]int) {
 	for param, dist := range paramToDist {
 		if param.isConventional() {
 			continue
@@ -143,7 +153,10 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 
 		pass.Reportf(param.field.Pos(), "parameter name '%s' is too short for the scope of its usage", param.name)
 	}
+}
 
+// checkReturns applies v to named return values in returnToDist.
+func (v *varNameLen) checkReturns(pass *analysis.Pass, returnToDist map[parameter]int) {
 	for param, dist := range returnToDist {
 		if v.checkNameAndDistance(param.name, dist) {
 			continue
