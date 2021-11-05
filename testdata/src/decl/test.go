@@ -1,6 +1,9 @@
 package main
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 func foo(c context.Context) {
 	println()
@@ -33,5 +36,64 @@ func foo3() {
 	println()
 	c = context.Background()
 	println(c)
+	return
+}
+
+func foo4(i int) {
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println(i)
+}
+
+func foo5() (i int) {
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	i = 123
+	return
+}
+
+func foo6() {
+	var i int
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	i = 123
+	println(i)
+	return
+}
+
+func foo7() {
+	var ip *int
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	*ip = 123
+	println(*ip)
+	return
+}
+
+func foo8() {
+	var b *strings.Builder = &strings.Builder{}
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println(b.String())
 	return
 }

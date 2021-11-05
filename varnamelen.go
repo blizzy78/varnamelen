@@ -654,17 +654,17 @@ func mustParseDeclaration(decl string) declaration {
 
 // parseDeclaration parses and returns a variable declaration parsed from decl.
 func parseDeclaration(decl string) (declaration, bool) {
-	expr, err := parser.ParseExpr("func(" + decl + ") {}")
+	funcExpr, err := parser.ParseExpr("func(" + decl + ") {}")
 	if err != nil {
 		return declaration{}, false
 	}
 
-	fDecl, ok := expr.(*ast.FuncLit)
+	funcDecl, ok := funcExpr.(*ast.FuncLit)
 	if !ok {
 		return declaration{}, false
 	}
 
-	params := fDecl.Type.Params.List
+	params := funcDecl.Type.Params.List
 	if len(params) != 1 {
 		return declaration{}, false
 	}
@@ -673,43 +673,50 @@ func parseDeclaration(decl string) (declaration, bool) {
 		return declaration{}, false
 	}
 
-	var sel *ast.SelectorExpr
+	var expr ast.Expr
 
 	pointer := false
 
 	switch typeExpr := params[0].Type.(type) {
 	case *ast.StarExpr:
-		var ok bool
-		sel, ok = typeExpr.X.(*ast.SelectorExpr)
-
-		if !ok {
-			return declaration{}, false
-		}
-
+		expr = typeExpr.X
 		pointer = true
-
 	case *ast.SelectorExpr:
-		sel = typeExpr
-
+		expr = typeExpr
+	case *ast.Ident:
+		expr = typeExpr
 	default:
 		return declaration{}, false
 	}
 
-	selIdent, ok := sel.X.(*ast.Ident)
-	if !ok {
+	switch ex := expr.(type) {
+	case *ast.SelectorExpr:
+		selIdent, ok := ex.X.(*ast.Ident)
+		if !ok {
+			return declaration{}, false
+		}
+
+		return declaration{
+			name:    params[0].Names[0].Name,
+			pointer: pointer,
+			typ:     selIdent.Name + "." + ex.Sel.Name,
+		}, true
+
+	case *ast.Ident:
+		return declaration{
+			name:    params[0].Names[0].Name,
+			pointer: pointer,
+			typ:     ex.Name,
+		}, true
+
+	default:
 		return declaration{}, false
 	}
-
-	return declaration{
-		name:    params[0].Names[0].Name,
-		pointer: pointer,
-		typ:     selIdent.Name + "." + sel.Sel.Name,
-	}, true
 }
 
 // matchType returns true if typ matches d.typ.
 func (d declaration) matchType(typ ast.Expr) bool {
-	var sel *ast.SelectorExpr
+	var expr ast.Expr
 
 	if d.pointer {
 		star, ok := typ.(*ast.StarExpr)
@@ -717,26 +724,24 @@ func (d declaration) matchType(typ ast.Expr) bool {
 			return false
 		}
 
-		sel, ok = star.X.(*ast.SelectorExpr)
-		if !ok {
-			return false
-		}
+		expr = star.X
 	} else {
-		var ok bool
-		sel, ok = typ.(*ast.SelectorExpr)
+		expr = typ
+	}
+
+	switch ex := expr.(type) {
+	case *ast.Ident:
+		return ex.Name == d.typ
+
+	case *ast.SelectorExpr:
+		ident, ok := ex.X.(*ast.Ident)
 		if !ok {
 			return false
 		}
-	}
 
-	selIdent, ok := sel.X.(*ast.Ident)
-	if !ok {
+		return ident.Name+"."+ex.Sel.Name == d.typ
+
+	default:
 		return false
 	}
-
-	if selIdent.Name+"."+sel.Sel.Name != d.typ {
-		return false
-	}
-
-	return true
 }

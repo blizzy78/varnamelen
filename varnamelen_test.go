@@ -67,7 +67,7 @@ func TestVarNameLen_Run_IgnoreDeclarations(t *testing.T) {
 	analyzer := NewAnalyzer()
 	_ = analyzer.Flags.Set("minNameLength", "4")
 	_ = analyzer.Flags.Set("checkReturn", "true")
-	_ = analyzer.Flags.Set("ignoreDecls", "c context.Context")
+	_ = analyzer.Flags.Set("ignoreDecls", "c context.Context, b *strings.Builder, i int, ip *int")
 
 	wd, _ := os.Getwd()
 	analysistest.Run(t, wd+"/testdata", analyzer, "decl")
