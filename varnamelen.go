@@ -1,7 +1,10 @@
 package varnamelen
 
 import (
+	"errors"
+	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"strings"
 
@@ -37,11 +40,19 @@ type varNameLen struct {
 
 	// ignoreChannelReceiveOk determines whether "ok" variables that hold the bool return value of a channel receive should be ignored.
 	ignoreChannelReceiveOk bool
+
+	// ignoreDeclarations is an optional list of variable declarations that should be ignored completely.
+	ignoreDeclarations declarationsValue
 }
 
 // stringsValue is the value of a list-of-strings flag.
 type stringsValue struct {
 	Values []string
+}
+
+// declarationsValue is the value of a list-of-declarations flag.
+type declarationsValue struct {
+	Values []declaration
 }
 
 // variable represents a declared variable.
@@ -62,6 +73,18 @@ type parameter struct {
 	field *ast.Field
 }
 
+// declaration is a variable declaration.
+type declaration struct {
+	// name is the name of the variable.
+	name string
+
+	// pointer determines whether the variable is a pointer.
+	pointer bool
+
+	// typ is the type of the variable.
+	typ string
+}
+
 const (
 	// defaultMaxDistance is the default value for the maximum distance between the declaration of a variable and its usage
 	// that is considered a "small scope."
@@ -71,12 +94,26 @@ const (
 	defaultMinNameLength = 3
 )
 
+// conventionalDecls is a list of conventional variable declarations.
+var conventionalDecls = []declaration{
+	mustParseDeclaration("t *testing.T"),
+	mustParseDeclaration("b *testing.B"),
+	mustParseDeclaration("tb testing.TB"),
+	mustParseDeclaration("pb *testing.PB"),
+	mustParseDeclaration("m *testing.M"),
+	mustParseDeclaration("ctx context.Context"),
+}
+
+// errParseDeclaration is returned when parsing of a variable declaration fails.
+var errParseDeclaration = errors.New("parse declaration")
+
 // NewAnalyzer returns a new analyzer that checks variable name length.
 func NewAnalyzer() *analysis.Analyzer {
 	vnl := varNameLen{
-		maxDistance:   defaultMaxDistance,
-		minNameLength: defaultMinNameLength,
-		ignoreNames:   stringsValue{},
+		maxDistance:        defaultMaxDistance,
+		minNameLength:      defaultMinNameLength,
+		ignoreNames:        stringsValue{},
+		ignoreDeclarations: declarationsValue{},
 	}
 
 	analyzer := analysis.Analyzer{
@@ -104,6 +141,7 @@ func NewAnalyzer() *analysis.Analyzer {
 	analyzer.Flags.BoolVar(&vnl.ignoreTypeAssertOk, "ignoreTypeAssertOk", false, "ignore 'ok' variables that hold the bool return value of a type assertion")
 	analyzer.Flags.BoolVar(&vnl.ignoreMapIndexOk, "ignoreMapIndexOk", false, "ignore 'ok' variables that hold the bool return value of a map index")
 	analyzer.Flags.BoolVar(&vnl.ignoreChannelReceiveOk, "ignoreChanRecvOk", false, "ignore 'ok' variables that hold the bool return value of a channel receive")
+	analyzer.Flags.Var(&vnl.ignoreDeclarations, "ignoreDecls", "comma-separated list of ignored variable declarations")
 
 	return &analyzer
 }
@@ -120,6 +158,14 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 // checkVariables applies v to variables in varToDist.
 func (v *varNameLen) checkVariables(pass *analysis.Pass, varToDist map[variable]int) {
 	for variable, dist := range varToDist {
+		if v.ignoreNames.contains(variable.name) {
+			continue
+		}
+
+		if v.ignoreDeclarations.matchVariable(variable) {
+			continue
+		}
+
 		if v.checkNameAndDistance(variable.name, dist) {
 			continue
 		}
@@ -143,11 +189,19 @@ func (v *varNameLen) checkVariables(pass *analysis.Pass, varToDist map[variable]
 // checkParams applies v to parameters in paramToDist.
 func (v *varNameLen) checkParams(pass *analysis.Pass, paramToDist map[parameter]int) {
 	for param, dist := range paramToDist {
-		if param.isConventional() {
+		if v.ignoreNames.contains(param.name) {
+			continue
+		}
+
+		if v.ignoreDeclarations.matchParameter(param) {
 			continue
 		}
 
 		if v.checkNameAndDistance(param.name, dist) {
+			continue
+		}
+
+		if param.isConventional() {
 			continue
 		}
 
@@ -157,26 +211,30 @@ func (v *varNameLen) checkParams(pass *analysis.Pass, paramToDist map[parameter]
 
 // checkReturns applies v to named return values in returnToDist.
 func (v *varNameLen) checkReturns(pass *analysis.Pass, returnToDist map[parameter]int) {
-	for param, dist := range returnToDist {
-		if v.checkNameAndDistance(param.name, dist) {
+	for returnValue, dist := range returnToDist {
+		if v.ignoreNames.contains(returnValue.name) {
 			continue
 		}
 
-		pass.Reportf(param.field.Pos(), "return value name '%s' is too short for the scope of its usage", param.name)
+		if v.ignoreDeclarations.matchParameter(returnValue) {
+			continue
+		}
+
+		if v.checkNameAndDistance(returnValue.name, dist) {
+			continue
+		}
+
+		pass.Reportf(returnValue.field.Pos(), "return value name '%s' is too short for the scope of its usage", returnValue.name)
 	}
 }
 
-// checkNameAndDistance returns true if name or dist are considered "short", or if name is to be ignored.
+// checkNameAndDistance returns true if name or dist are considered "short".
 func (v *varNameLen) checkNameAndDistance(name string, dist int) bool {
 	if len(name) >= v.minNameLength {
 		return true
 	}
 
 	if dist <= v.maxDistance {
-		return true
-	}
-
-	if v.ignoreNames.contains(name) {
 		return true
 	}
 
@@ -399,6 +457,10 @@ func (v variable) isChannelReceiveOk() bool {
 	return true
 }
 
+func (v variable) match(decl declaration) bool {
+	return false
+}
+
 // isReceiver returns true if field is a receiver parameter of any of the given methods.
 func isReceiver(field *ast.Field, methods []*ast.FuncDecl) bool {
 	for _, m := range methods {
@@ -431,7 +493,13 @@ func isReturn(field *ast.Field, funcs []*ast.FuncDecl) bool {
 
 // Set implements Value.
 func (sv *stringsValue) Set(s string) error {
-	sv.Values = strings.Split(s, ",")
+	parts := strings.Split(s, ",")
+
+	sv.Values = make([]string, len(parts))
+	for i, part := range parts {
+		sv.Values[i] = strings.TrimSpace(part)
+	}
+
 	return nil
 }
 
@@ -451,58 +519,172 @@ func (sv *stringsValue) contains(s string) bool {
 	return false
 }
 
+// Set implements Value.
+func (dv *declarationsValue) Set(s string) error {
+	parts := strings.Split(s, ",")
+
+	dv.Values = make([]declaration, len(parts))
+	for i, part := range parts {
+		decl, ok := parseDeclaration(part)
+		if !ok {
+			return fmt.Errorf("%s: %w", part, errParseDeclaration)
+		}
+
+		dv.Values[i] = decl
+	}
+
+	return nil
+}
+
+// String implements Value.
+func (dv *declarationsValue) String() string {
+	parts := make([]string, len(dv.Values))
+
+	for i, v := range dv.Values {
+		part := v.name + " "
+
+		if v.pointer {
+			part += "*"
+		}
+
+		part += v.typ
+
+		parts[i] = part
+	}
+
+	return strings.Join(parts, ",")
+}
+
+func (dv *declarationsValue) matchVariable(vari variable) bool {
+	for _, decl := range dv.Values {
+		if vari.match(decl) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// matchParameter returns true if param matches any of the declarations in dv.
+func (dv *declarationsValue) matchParameter(param parameter) bool {
+	for _, decl := range dv.Values {
+		if param.match(decl) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // isConventional returns true if p is a conventional Go parameter, such as "ctx context.Context" or
 // "t *testing.T".
-func (p parameter) isConventional() bool { //nolint:cyclop // it's not as complicated as it looks
-	switch {
-	case p.name == "t" && p.isPointerType("testing.T"):
-		return true
-	case p.name == "b" && p.isPointerType("testing.B"):
-		return true
-	case p.name == "tb" && p.isType("testing.TB"):
-		return true
-	case p.name == "pb" && p.isPointerType("testing.PB"):
-		return true
-	case p.name == "m" && p.isPointerType("testing.M"):
-		return true
-	case p.name == "ctx" && p.isType("context.Context"):
-		return true
+func (p parameter) isConventional() bool {
+	for _, decl := range conventionalDecls {
+		if p.match(decl) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// match returns whether p matches decl.
+func (p parameter) match(decl declaration) bool {
+	if p.name != decl.name {
+		return false
+	}
+
+	var sel *ast.SelectorExpr
+
+	if decl.pointer {
+		star, ok := p.field.Type.(*ast.StarExpr)
+		if !ok {
+			return false
+		}
+
+		sel, ok = star.X.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+	} else {
+		var ok bool
+		sel, ok = p.field.Type.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+	}
+
+	selIdent, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+
+	if selIdent.Name+"."+sel.Sel.Name != decl.typ {
+		return false
+	}
+
+	return true
+}
+
+func mustParseDeclaration(decl string) declaration {
+	dcl, ok := parseDeclaration(decl)
+	if !ok {
+		panic("parse declaration: " + decl)
+	}
+
+	return dcl
+}
+
+func parseDeclaration(decl string) (declaration, bool) {
+	expr, err := parser.ParseExpr("func(" + decl + ") {}")
+	if err != nil {
+		return declaration{}, false
+	}
+
+	fDecl, ok := expr.(*ast.FuncLit)
+	if !ok {
+		return declaration{}, false
+	}
+
+	params := fDecl.Type.Params.List
+	if len(params) != 1 {
+		return declaration{}, false
+	}
+
+	if len(params[0].Names) != 1 {
+		return declaration{}, false
+	}
+
+	var sel *ast.SelectorExpr
+
+	pointer := false
+
+	switch typeExpr := params[0].Type.(type) {
+	case *ast.StarExpr:
+		var ok bool
+		sel, ok = typeExpr.X.(*ast.SelectorExpr)
+
+		if !ok {
+			return declaration{}, false
+		}
+
+		pointer = true
+
+	case *ast.SelectorExpr:
+		sel = typeExpr
+
 	default:
-		return false
+		return declaration{}, false
 	}
-}
 
-// isType returns true if p is of type typeName.
-func (p parameter) isType(typeName string) bool {
-	sel, ok := p.field.Type.(*ast.SelectorExpr)
+	selIdent, ok := sel.X.(*ast.Ident)
 	if !ok {
-		return false
+		return declaration{}, false
 	}
 
-	return isType(sel, typeName)
-}
-
-// isPointerType returns true if p is a pointer type of type typeName.
-func (p parameter) isPointerType(typeName string) bool {
-	star, ok := p.field.Type.(*ast.StarExpr)
-	if !ok {
-		return false
-	}
-
-	sel, ok := star.X.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-
-	return isType(sel, typeName)
-}
-
-// isType returns true if sel is a selector for type typeName.
-func isType(sel *ast.SelectorExpr, typeName string) bool {
-	ident, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return false
-	}
-
-	return typeName == ident.Name+"."+sel.Sel.Name
+	return declaration{
+		name:    params[0].Names[0].Name,
+		pointer: pointer,
+		typ:     selIdent.Name + "." + sel.Sel.Name,
+	}, true
 }

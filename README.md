@@ -65,6 +65,8 @@ Flags:
     	print analyzer flags in JSON
   -ignoreChanRecvOk
     	ignore 'ok' variables that hold the bool return value of a channel receive
+  -ignoreDecls value
+    	comma-separated list of ignored variable declarations
   -ignoreMapIndexOk
     	ignore 'ok' variables that hold the bool return value of a map index
   -ignoreNames value

@@ -53,6 +53,7 @@ func foo(p int, p2 int, ip int, longParam int) (rv string) { // want "parameter 
 	p += ip
 
 	rv = "foo"
+
 	return
 }
 
