@@ -30,6 +30,9 @@ type varNameLen struct {
 
 	// ignoreTypeAssertOk determines whether "ok" variables that hold the bool return value of a type assertion should be ignored.
 	ignoreTypeAssertOk bool
+
+	// ignoreMapIndexOk determines whether "ok" variables that hold the bool return value of a map index should be ignored.
+	ignoreMapIndexOk bool
 }
 
 // stringsValue is the value of a list-of-strings flag.
@@ -95,6 +98,7 @@ func NewAnalyzer() *analysis.Analyzer {
 	analyzer.Flags.BoolVar(&vnl.checkReceiver, "checkReceiver", false, "check method receiver names")
 	analyzer.Flags.BoolVar(&vnl.checkReturn, "checkReturn", false, "check named return values")
 	analyzer.Flags.BoolVar(&vnl.ignoreTypeAssertOk, "ignoreTypeAssertOk", false, "ignore 'ok' variables that hold the bool return value of a type assertion")
+	analyzer.Flags.BoolVar(&vnl.ignoreMapIndexOk, "ignoreMapIndexOk", false, "ignore 'ok' variables that hold the bool return value of a map index")
 
 	return &analyzer
 }
@@ -109,6 +113,10 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 		}
 
 		if v.checkTypeAssertOk(variable) {
+			continue
+		}
+
+		if v.checkMapIndexOk(variable) {
 			continue
 		}
 
@@ -157,6 +165,12 @@ func (v *varNameLen) checkNameAndDistance(name string, dist int) bool {
 // should be ignored, and if vari is such a variable.
 func (v *varNameLen) checkTypeAssertOk(vari variable) bool {
 	return v.ignoreTypeAssertOk && vari.isTypeAssertOk()
+}
+
+// checkMapIndexOk returns true if "ok" variables that hold the bool return value of a map index
+// should be ignored, and if vari is such a variable.
+func (v *varNameLen) checkMapIndexOk(vari variable) bool {
+	return v.ignoreMapIndexOk && vari.isMapIndexOk()
 }
 
 // distances maps of variables or parameters and their longest usage distances.
@@ -285,6 +299,35 @@ func (v variable) isTypeAssertOk() bool {
 	}
 
 	if _, ok := v.assign.Rhs[0].(*ast.TypeAssertExpr); !ok {
+		return false
+	}
+
+	return true
+}
+
+// isMapIndexOk returns true if v is an "ok" variable that holds the bool return value of a map index.
+func (v variable) isMapIndexOk() bool {
+	if v.name != "ok" {
+		return false
+	}
+
+	if len(v.assign.Lhs) != 2 {
+		return false
+	}
+
+	if _, ok := v.assign.Lhs[1].(*ast.Ident); !ok {
+		return false
+	}
+
+	if v.assign.Lhs[1].(*ast.Ident).Name != "ok" {
+		return false
+	}
+
+	if len(v.assign.Rhs) != 1 {
+		return false
+	}
+
+	if _, ok := v.assign.Rhs[0].(*ast.IndexExpr); !ok {
 		return false
 	}
 
