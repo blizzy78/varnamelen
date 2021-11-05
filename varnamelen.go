@@ -301,11 +301,12 @@ func (v variable) isTypeAssertOk() bool {
 		return false
 	}
 
-	if _, ok := v.assign.Lhs[1].(*ast.Ident); !ok {
+	ident, ok := v.assign.Lhs[1].(*ast.Ident)
+	if !ok {
 		return false
 	}
 
-	if v.assign.Lhs[1].(*ast.Ident).Name != "ok" {
+	if ident.Name != "ok" {
 		return false
 	}
 
@@ -330,11 +331,12 @@ func (v variable) isMapIndexOk() bool {
 		return false
 	}
 
-	if _, ok := v.assign.Lhs[1].(*ast.Ident); !ok {
+	ident, ok := v.assign.Lhs[1].(*ast.Ident)
+	if !ok {
 		return false
 	}
 
-	if v.assign.Lhs[1].(*ast.Ident).Name != "ok" {
+	if ident.Name != "ok" {
 		return false
 	}
 
@@ -359,11 +361,12 @@ func (v variable) isChannelReceiveOk() bool {
 		return false
 	}
 
-	if _, ok := v.assign.Lhs[1].(*ast.Ident); !ok {
+	ident, ok := v.assign.Lhs[1].(*ast.Ident)
+	if !ok {
 		return false
 	}
 
-	if v.assign.Lhs[1].(*ast.Ident).Name != "ok" {
+	if ident.Name != "ok" {
 		return false
 	}
 
@@ -371,11 +374,12 @@ func (v variable) isChannelReceiveOk() bool {
 		return false
 	}
 
-	if _, ok := v.assign.Rhs[0].(*ast.UnaryExpr); !ok {
+	unary, ok := v.assign.Rhs[0].(*ast.UnaryExpr)
+	if !ok {
 		return false
 	}
 
-	if v.assign.Rhs[0].(*ast.UnaryExpr).Op != token.ARROW {
+	if unary.Op != token.ARROW {
 		return false
 	}
 
