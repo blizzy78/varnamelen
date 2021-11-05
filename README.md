@@ -25,6 +25,46 @@ test.go:6:2: variable name 'i' is too short for the scope of its usage (varnamel
 ```
 
 
+golangci-lint Integration
+-------------------------
+
+varnamelen is integrated into [golangci-lint] (though it may not always be the most recent version.)
+
+Example configuration for golangci-lint:
+
+```yaml
+linters-settings:
+  varnamelen:
+    # The longest distance, in source lines, that is being considered a "small scope." (defaults to 5)
+    # Variables used in at most this many lines will be ignored.
+    max-distance: 5
+    # The minimum length of a variable's name that is considered "long." (defaults to 3)
+    # Variable names that are at least this long will be ignored.
+    min-name-length: 3
+    # Check method receiver names. (defaults to false)
+    check-receiver: false
+    # Check named return values. (defaults to false)
+    check-return: false
+    # Ignore "ok" variables that hold the bool return value of a type assertion. (defaults to false)
+    ignore-type-assert-ok: false
+    # Ignore "ok" variables that hold the bool return value of a map index. (defaults to false)
+    ignore-map-index-ok: false
+    # Ignore "ok" variables that hold the bool return value of a channel receive. (defaults to false)
+    ignore-chan-recv-ok: false
+    # Optional list of variable names that should be ignored completely. (defaults to empty list)
+    ignore-names:
+      - err
+    # Optional list of variable declarations that should be ignored completely. (defaults to empty list)
+    # Entries must be in the form of "<variable name> <type>" or "<variable name> *<type>".
+    ignore-decls:
+      - c echo.Context
+      - t testing.T
+      - f *foo.Bar
+      - e error
+	  - i int
+```
+
+
 Standalone Usage
 ----------------
 
@@ -95,3 +135,7 @@ License
 -------
 
 This package is licensed under the MIT license.
+
+
+
+[golangci-lint]: https://github.com/golangci/golangci-lint
