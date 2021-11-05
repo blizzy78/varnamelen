@@ -43,7 +43,7 @@ func TestVarNameLen_Run_IgnoreTypeAssertOk(t *testing.T) {
 	_ = analyzer.Flags.Set("ignoreTypeAssertOk", "true")
 
 	wd, _ := os.Getwd()
-	analysistest.Run(t, wd+"/testdata", analyzer, "type-assert")
+	analysistest.Run(t, wd+"/testdata", analyzer, "type-assert-ok")
 }
 
 func TestStringsValue_Set(t *testing.T) {
