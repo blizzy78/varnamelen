@@ -11,7 +11,7 @@ import (
 func TestVarNameLen_Run(t *testing.T) {
 	a := NewAnalyzer()
 	_ = a.Flags.Set("minNameLength", "4")
-	_ = a.Flags.Set("ignoreNames", "i,ip")
+	_ = a.Flags.Set("ignoreNames", "i, ip")
 
 	wd, _ := os.Getwd()
 	analysistest.Run(t, wd+"/testdata", a, "test")

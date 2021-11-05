@@ -107,8 +107,8 @@ var conventionalDecls = []declaration{
 	mustParseDeclaration("ctx context.Context"),
 }
 
-// errParseDeclaration is returned when parsing of a variable declaration fails.
-var errParseDeclaration = errors.New("parse declaration")
+// errInvalidDeclaration is returned when trying to parse an invalid variable declaration.
+var errInvalidDeclaration = errors.New("invalid declaration")
 
 // NewAnalyzer returns a new analyzer that checks variable name length.
 func NewAnalyzer() *analysis.Analyzer {
@@ -538,9 +538,15 @@ func isReturn(field *ast.Field, funcs []*ast.FuncDecl) bool {
 
 // Set implements Value.
 func (sv *stringsValue) Set(s string) error {
+	if strings.TrimSpace(s) == "" {
+		sv.Values = nil
+		return nil
+	}
+
 	parts := strings.Split(s, ",")
 
 	sv.Values = make([]string, len(parts))
+
 	for i, part := range parts {
 		sv.Values[i] = strings.TrimSpace(part)
 	}
@@ -566,13 +572,19 @@ func (sv *stringsValue) contains(s string) bool {
 
 // Set implements Value.
 func (dv *declarationsValue) Set(s string) error {
+	if strings.TrimSpace(s) == "" {
+		dv.Values = nil
+		return nil
+	}
+
 	parts := strings.Split(s, ",")
 
 	dv.Values = make([]declaration, len(parts))
+
 	for i, part := range parts {
-		decl, ok := parseDeclaration(part)
+		decl, ok := parseDeclaration(strings.TrimSpace(part))
 		if !ok {
-			return fmt.Errorf("%s: %w", part, errParseDeclaration)
+			return fmt.Errorf("%s: %w", part, errInvalidDeclaration)
 		}
 
 		dv.Values[i] = decl
