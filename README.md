@@ -63,6 +63,10 @@ Flags:
     	apply all suggested fixes
   -flags
     	print analyzer flags in JSON
+  -ignoreChanRecvOk
+    	ignore 'ok' variables that hold the bool return value of a channel receive
+  -ignoreMapIndexOk
+    	ignore 'ok' variables that hold the bool return value of a map index
   -ignoreNames value
     	comma-separated list of ignored variable names
   -ignoreTypeAssertOk
