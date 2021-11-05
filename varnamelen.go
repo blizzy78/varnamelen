@@ -2,6 +2,7 @@ package varnamelen
 
 import (
 	"go/ast"
+	"go/token"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -33,6 +34,9 @@ type varNameLen struct {
 
 	// ignoreMapIndexOk determines whether "ok" variables that hold the bool return value of a map index should be ignored.
 	ignoreMapIndexOk bool
+
+	// ignoreChannelReceiveOk determines whether "ok" variables that hold the bool return value of a channel receive should be ignored.
+	ignoreChannelReceiveOk bool
 }
 
 // stringsValue is the value of a list-of-strings flag.
@@ -99,6 +103,7 @@ func NewAnalyzer() *analysis.Analyzer {
 	analyzer.Flags.BoolVar(&vnl.checkReturn, "checkReturn", false, "check named return values")
 	analyzer.Flags.BoolVar(&vnl.ignoreTypeAssertOk, "ignoreTypeAssertOk", false, "ignore 'ok' variables that hold the bool return value of a type assertion")
 	analyzer.Flags.BoolVar(&vnl.ignoreMapIndexOk, "ignoreMapIndexOk", false, "ignore 'ok' variables that hold the bool return value of a map index")
+	analyzer.Flags.BoolVar(&vnl.ignoreChannelReceiveOk, "ignoreChanRecvOk", false, "ignore 'ok' variables that hold the bool return value of a channel receive")
 
 	return &analyzer
 }
@@ -117,6 +122,10 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 		}
 
 		if v.checkMapIndexOk(variable) {
+			continue
+		}
+
+		if v.checkChannelReceiveOk(variable) {
 			continue
 		}
 
@@ -171,6 +180,12 @@ func (v *varNameLen) checkTypeAssertOk(vari variable) bool {
 // should be ignored, and if vari is such a variable.
 func (v *varNameLen) checkMapIndexOk(vari variable) bool {
 	return v.ignoreMapIndexOk && vari.isMapIndexOk()
+}
+
+// checkChannelReceiveOk returns true if "ok" variables that hold the bool return value of a channel receive
+// should be ignored, and if vari is such a variable.
+func (v *varNameLen) checkChannelReceiveOk(vari variable) bool {
+	return v.ignoreChannelReceiveOk && vari.isChannelReceiveOk()
 }
 
 // distances maps of variables or parameters and their longest usage distances.
@@ -328,6 +343,39 @@ func (v variable) isMapIndexOk() bool {
 	}
 
 	if _, ok := v.assign.Rhs[0].(*ast.IndexExpr); !ok {
+		return false
+	}
+
+	return true
+}
+
+// isChannelReceiveOk returns true if v is an "ok" variable that holds the bool return value of a channel receive.
+func (v variable) isChannelReceiveOk() bool {
+	if v.name != "ok" {
+		return false
+	}
+
+	if len(v.assign.Lhs) != 2 {
+		return false
+	}
+
+	if _, ok := v.assign.Lhs[1].(*ast.Ident); !ok {
+		return false
+	}
+
+	if v.assign.Lhs[1].(*ast.Ident).Name != "ok" {
+		return false
+	}
+
+	if len(v.assign.Rhs) != 1 {
+		return false
+	}
+
+	if _, ok := v.assign.Rhs[0].(*ast.UnaryExpr); !ok {
+		return false
+	}
+
+	if v.assign.Rhs[0].(*ast.UnaryExpr).Op != token.ARROW {
 		return false
 	}
 

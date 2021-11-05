@@ -56,6 +56,16 @@ func TestVarNameLen_Run_IgnoreMapIndexOk(t *testing.T) {
 	analysistest.Run(t, wd+"/testdata", analyzer, "map-index-ok")
 }
 
+func TestVarNameLen_Run_IgnoreChannelReceiveOk(t *testing.T) {
+	analyzer := NewAnalyzer()
+	_ = analyzer.Flags.Set("minNameLength", "4")
+	_ = analyzer.Flags.Set("ignoreNames", "i")
+	_ = analyzer.Flags.Set("ignoreChanRecvOk", "true")
+
+	wd, _ := os.Getwd()
+	analysistest.Run(t, wd+"/testdata", analyzer, "chan-recv-ok")
+}
+
 func TestStringsValue_Set(t *testing.T) {
 	is := is.New(t)
 	v := stringsValue{}
