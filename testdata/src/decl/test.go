@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const C = 299792458
+
 func foo(c context.Context) {
 	println()
 	println()
@@ -13,6 +15,8 @@ func foo(c context.Context) {
 	println()
 	println()
 	println(c)
+
+	println(C)
 }
 
 func foo2() (c context.Context) {

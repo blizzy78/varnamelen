@@ -9,6 +9,11 @@ type test struct {
 	x int
 }
 
+const (
+	C  = 299792458 // want "constant name 'C' is too short for the scope of its usage"
+	CI = 123
+)
+
 func foo(p int, p2 int, ip int, longParam int) (rv string) { // want "parameter name 'p' is too short for the scope of its usage"
 	p2 += longParam
 
@@ -62,6 +67,10 @@ func foo(p int, p2 int, ip int, longParam int) (rv string) { // want "parameter 
 	println()
 	println()
 	println(z)
+
+	println(C)
+
+	println(CI)
 
 	return
 }

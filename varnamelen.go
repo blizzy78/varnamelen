@@ -60,6 +60,9 @@ type variable struct {
 	// name is the name of the variable.
 	name string
 
+	// constant is true if the variable is actually a constant.
+	constant bool
+
 	// assign is the assign statement that declares the variable.
 	assign *ast.AssignStmt
 
@@ -81,10 +84,13 @@ type declaration struct {
 	// name is the name of the variable.
 	name string
 
-	// pointer determines whether the variable is a pointer.
+	// constant is true if the variable is actually a constant.
+	constant bool
+
+	// pointer determines whether the variable is a pointer. Not used for constants.
 	pointer bool
 
-	// typ is the type of the variable.
+	// typ is the type of the variable. Not used for constants.
 	typ string
 }
 
@@ -186,11 +192,11 @@ func (v *varNameLen) checkVariables(pass *analysis.Pass, varToDist map[variable]
 		}
 
 		if variable.assign != nil {
-			pass.Reportf(variable.assign.Pos(), "variable name '%s' is too short for the scope of its usage", variable.name)
+			pass.Reportf(variable.assign.Pos(), "%s name '%s' is too short for the scope of its usage", variable.kindName(), variable.name)
 			continue
 		}
 
-		pass.Reportf(variable.valueSpec.Pos(), "variable name '%s' is too short for the scope of its usage", variable.name)
+		pass.Reportf(variable.valueSpec.Pos(), "%s name '%s' is too short for the scope of its usage", variable.kindName(), variable.name)
 	}
 }
 
@@ -289,6 +295,7 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 		valueSpec := ident.Obj.Decl.(*ast.ValueSpec) //nolint:forcetypeassert // check is done in idents()
 		variable := variable{
 			name:      ident.Name,
+			constant:  ident.Obj.Kind == ast.Con,
 			valueSpec: valueSpec,
 		}
 
@@ -388,11 +395,11 @@ func (v *varNameLen) idents(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []
 
 // isTypeAssertOk returns true if v is an "ok" variable that holds the bool return value of a type assertion.
 func (v variable) isTypeAssertOk() bool {
-	if v.assign == nil {
+	if v.name != "ok" {
 		return false
 	}
 
-	if v.name != "ok" {
+	if v.assign == nil {
 		return false
 	}
 
@@ -422,11 +429,11 @@ func (v variable) isTypeAssertOk() bool {
 
 // isMapIndexOk returns true if v is an "ok" variable that holds the bool return value of a map index.
 func (v variable) isMapIndexOk() bool {
-	if v.assign == nil {
+	if v.name != "ok" {
 		return false
 	}
 
-	if v.name != "ok" {
+	if v.assign == nil {
 		return false
 	}
 
@@ -456,11 +463,11 @@ func (v variable) isMapIndexOk() bool {
 
 // isChannelReceiveOk returns true if v is an "ok" variable that holds the bool return value of a channel receive.
 func (v variable) isChannelReceiveOk() bool {
-	if v.assign == nil {
+	if v.name != "ok" {
 		return false
 	}
 
-	if v.name != "ok" {
+	if v.assign == nil {
 		return false
 	}
 
@@ -495,15 +502,32 @@ func (v variable) isChannelReceiveOk() bool {
 
 // match returns true if v matches decl.
 func (v variable) match(decl declaration) bool {
-	if v.valueSpec == nil {
-		return false
-	}
-
 	if v.name != decl.name {
 		return false
 	}
 
+	if v.constant != decl.constant {
+		return false
+	}
+
+	if v.constant {
+		return true
+	}
+
+	if v.valueSpec == nil {
+		return false
+	}
+
 	return decl.matchType(v.valueSpec.Type)
+}
+
+// kindName returns "constant" if v.constant==true, else "variable".
+func (v variable) kindName() string {
+	if v.constant {
+		return "constant"
+	}
+
+	return "variable"
 }
 
 // isReceiver returns true if field is a receiver parameter of any of the given methods.
@@ -667,6 +691,13 @@ func mustParseDeclaration(decl string) declaration {
 
 // parseDeclaration parses and returns a variable declaration parsed from decl.
 func parseDeclaration(decl string) (declaration, bool) { //nolint:cyclop // this is complex stuff
+	if strings.HasPrefix(decl, "const ") {
+		return declaration{
+			name:     strings.TrimPrefix(decl, "const "),
+			constant: true,
+		}, true
+	}
+
 	funcExpr, err := parser.ParseExpr("func(" + decl + ") {}")
 	if err != nil {
 		return declaration{}, false

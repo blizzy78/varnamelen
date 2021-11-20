@@ -11,7 +11,7 @@ import (
 func TestVarNameLen_Run(t *testing.T) {
 	a := NewAnalyzer()
 	_ = a.Flags.Set("minNameLength", "4")
-	_ = a.Flags.Set("ignoreNames", "i, ip")
+	_ = a.Flags.Set("ignoreNames", "i, ip, CI")
 
 	wd, _ := os.Getwd()
 	analysistest.Run(t, wd+"/testdata", a, "test")
@@ -67,7 +67,7 @@ func TestVarNameLen_Run_IgnoreDeclarations(t *testing.T) {
 	analyzer := NewAnalyzer()
 	_ = analyzer.Flags.Set("minNameLength", "4")
 	_ = analyzer.Flags.Set("checkReturn", "true")
-	_ = analyzer.Flags.Set("ignoreDecls", "c context.Context, b *strings.Builder, i int, ip *int")
+	_ = analyzer.Flags.Set("ignoreDecls", "c context.Context, b *strings.Builder, i int, ip *int, const C")
 
 	wd, _ := os.Getwd()
 	analysistest.Run(t, wd+"/testdata", analyzer, "decl")
