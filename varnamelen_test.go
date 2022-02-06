@@ -73,21 +73,6 @@ func TestVarNameLen_Run_IgnoreDeclarations(t *testing.T) {
 	analysistest.Run(t, wd+"/testdata", analyzer, "decl")
 }
 
-func TestStringsValue_Set(t *testing.T) {
-	is := is.New(t)
-	v := stringsValue{}
-	_ = v.Set("foo,bar,baz")
-	is.Equal(v.Values, []string{"foo", "bar", "baz"})
-}
-
-func TestStringsValue_String(t *testing.T) {
-	is := is.New(t)
-	v := stringsValue{
-		Values: []string{"foo", "bar", "baz"},
-	}
-	is.Equal(v.String(), "foo,bar,baz")
-}
-
 func TestParseDeclaration(t *testing.T) {
 	tests := []struct {
 		givenDecl string
