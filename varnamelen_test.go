@@ -67,7 +67,7 @@ func TestVarNameLen_Run_IgnoreDeclarations(t *testing.T) {
 	analyzer := NewAnalyzer()
 	_ = analyzer.Flags.Set("minNameLength", "4")
 	_ = analyzer.Flags.Set("checkReturn", "true")
-	_ = analyzer.Flags.Set("ignoreDecls", "c context.Context, b *strings.Builder, i int, ip *int, const C")
+	_ = analyzer.Flags.Set("ignoreDecls", "c context.Context, b bb.Buffer, b *strings.Builder, d *bb.Buffer, i int, ip *int, const C, f func(), m map[int]*bb.Buffer, mi int")
 
 	wd, _ := os.Getwd()
 	analysistest.Run(t, wd+"/testdata", analyzer, "decl")
@@ -95,11 +95,15 @@ func TestParseDeclaration(t *testing.T) {
 	}{
 		{
 			givenDecl: "t *testing.T",
-			wantDecl:  declaration{name: "t", pointer: true, typ: "testing.T"},
+			wantDecl:  declaration{name: "t", typ: "*testing.T"},
 		},
 		{
 			givenDecl: "c echo.Context",
-			wantDecl:  declaration{name: "c", pointer: false, typ: "echo.Context"},
+			wantDecl:  declaration{name: "c", typ: "echo.Context"},
+		},
+		{
+			givenDecl: "const C",
+			wantDecl:  declaration{name: "C", constant: true},
 		},
 	}
 
@@ -107,9 +111,7 @@ func TestParseDeclaration(t *testing.T) {
 		t.Run(test.givenDecl, func(t *testing.T) {
 			is := is.New(t)
 
-			decl, ok := parseDeclaration(test.givenDecl)
-			is.Equal(decl, test.wantDecl)
-			is.True(ok)
+			is.Equal(parseDeclaration(test.givenDecl), test.wantDecl)
 		})
 	}
 }

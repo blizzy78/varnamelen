@@ -1,7 +1,9 @@
 package main
 
 import (
+	bb "bytes"
 	"context"
+	"math"
 	"strings"
 )
 
@@ -100,4 +102,68 @@ func foo8() {
 	println()
 	println(b.String())
 	return
+}
+
+func foo9() {
+	c := context.Background()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	_ = c.Err()
+}
+
+func foo10() {
+	b := bb.Buffer{}
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println(b.String())
+
+	d := &bb.Buffer{}
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println(d.String())
+}
+
+func foo11() {
+	f := foo11
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println(f)
+}
+
+func foo12() {
+	m := map[int]*bb.Buffer{}
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println(m)
+}
+
+func foo13() {
+	mi := math.MinInt8
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println(mi)
 }
