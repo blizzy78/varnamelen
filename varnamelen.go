@@ -664,7 +664,7 @@ func isReturn(field *ast.Field, funcs []*ast.FuncDecl) bool {
 	return false
 }
 
-// isKeyValueKey returns true if ident is a key of any of the given key/value expressions.
+// isCompositeLitKey returns true if ident is a key of any of the given composite literals.
 func isCompositeLitKey(ident *ast.Ident, compositeLits []*ast.CompositeLit) bool {
 	for _, cl := range compositeLits {
 		if _, ok := cl.Type.(*ast.MapType); ok {
