@@ -72,6 +72,16 @@ func foo(p int, p2 int, ip int, longParam int) (rv string) { // want "parameter 
 
 	println(CI)
 
+	for x := range []struct{}{} { // want "variable name 'x' is too short for the scope of its usage"
+		println()
+		println()
+		println()
+		println()
+		println()
+		println()
+		println(x)
+	}
+
 	return
 }
 
@@ -97,4 +107,63 @@ func Conventionals(ctx context.Context, t *testing.T, b *testing.B, tb testing.T
 	m.Run()
 	pb.Next()
 	ctx.Err()
+}
+
+func Conventionals2(t *testing.T) {
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+
+	var _ = struct{ t testing.TB }{t: t}
+}
+
+func Conventionals3() {
+	var t *testing.T = nil
+
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+
+	var _ = struct{ t testing.TB }{t: t}
+}
+
+func Conventionals4() {
+	t := &testing.T{}
+
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+
+	var _ = struct{ t testing.TB }{t: t}
+
+	println(t)
+}
+
+func switcheroo() {
+	type inter interface{}
+	type str struct{}
+	type str2 struct{}
+
+	var x inter
+	switch y := x.(type) { // want "variable name 'y' is too short for the scope of its usage"
+	// fill
+	// fill
+	// fill
+	// fill
+	// fill
+	// fill
+	case *str:
+		_ = y
+	case *str2:
+		_ = y
+	}
 }

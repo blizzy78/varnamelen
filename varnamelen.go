@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"sort"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -169,7 +170,7 @@ func (v *varNameLen) run(pass *analysis.Pass) {
 }
 
 // checkVariables applies v to variables in varToDist.
-func (v *varNameLen) checkVariables(pass *analysis.Pass, varToDist map[variable]int) {
+func (v *varNameLen) checkVariables(pass *analysis.Pass, varToDist map[variable]int) { //nolint:gocognit // it's not that complicated
 	for variable, dist := range varToDist {
 		if v.ignoreNames.contains(variable.name) {
 			continue
@@ -192,6 +193,10 @@ func (v *varNameLen) checkVariables(pass *analysis.Pass, varToDist map[variable]
 		}
 
 		if v.checkChannelReceiveOk(variable) {
+			continue
+		}
+
+		if variable.isConventional() {
 			continue
 		}
 
@@ -279,16 +284,23 @@ func (v *varNameLen) checkChannelReceiveOk(vari variable) bool {
 
 // distances returns maps of variables, parameters, and return values mapping to their longest usage distances.
 func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[parameter]int, map[parameter]int) {
-	assignIdents, valueSpecIdents, paramIdents, returnIdents, imports := v.identsAndImports(pass)
+	assignIdents, valueSpecIdents, paramIdents, returnIdents, imports, switches := v.identsAndImports(pass)
 
 	varToDist := map[variable]int{}
 
 	for _, ident := range assignIdents {
 		assign := ident.Obj.Decl.(*ast.AssignStmt) //nolint:forcetypeassert // check is done in identsAndImports
 
+		var typ string
+		if isTypeSwitchAssign(assign, switches) {
+			typ = "<type-switched>"
+		} else {
+			typ = shortTypeName(pass.TypesInfo.TypeOf(ident), imports)
+		}
+
 		variable := variable{
 			name:   ident.Name,
-			typ:    shortTypeName(pass.TypesInfo.TypeOf(identAssignExpr(ident, assign)), imports),
+			typ:    typ,
 			assign: assign,
 		}
 
@@ -303,7 +315,7 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 		variable := variable{
 			name:      ident.Name,
 			constant:  ident.Obj.Kind == ast.Con,
-			typ:       shortTypeName(pass.TypesInfo.TypeOf(valueSpec.Type), imports),
+			typ:       shortTypeName(pass.TypesInfo.TypeOf(ident), imports),
 			valueSpec: valueSpec,
 		}
 
@@ -335,7 +347,7 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 
 		param := parameter{
 			name:  ident.Name,
-			typ:   shortTypeName(pass.TypesInfo.TypeOf(field.Type), imports),
+			typ:   shortTypeName(pass.TypesInfo.TypeOf(ident), imports),
 			field: field,
 		}
 
@@ -348,18 +360,22 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 }
 
 // identsAndImports returns Idents referencing assign statements, value specifications, parameters, and return values, respectively,
-// as well as import declarations.
-func (v *varNameLen) identsAndImports(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []*ast.Ident, []*ast.Ident, []importDeclaration) { //nolint:gocognit,cyclop // this is complex stuff
+// as well as import declarations, and type switch statements.
+func (v *varNameLen) identsAndImports(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []*ast.Ident, []*ast.Ident, []importDeclaration, []*ast.TypeSwitchStmt) { //nolint:gocognit,cyclop // this is complex stuff
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector) //nolint:forcetypeassert // inspect.Analyzer always returns *inspector.Inspector
 
 	filter := []ast.Node{
 		(*ast.ImportSpec)(nil),
 		(*ast.FuncDecl)(nil),
+		(*ast.CompositeLit)(nil),
+		(*ast.TypeSwitchStmt)(nil),
 		(*ast.Ident)(nil),
 	}
 
 	funcs := []*ast.FuncDecl{}
 	methods := []*ast.FuncDecl{}
+	compositeLits := []*ast.CompositeLit{}
+	switches := []*ast.TypeSwitchStmt{}
 
 	imports := []importDeclaration{}
 	assignIdents := []*ast.Ident{}
@@ -386,8 +402,18 @@ func (v *varNameLen) identsAndImports(pass *analysis.Pass) ([]*ast.Ident, []*ast
 
 			methods = append(methods, node2)
 
+		case *ast.CompositeLit:
+			compositeLits = append(compositeLits, node2)
+
+		case *ast.TypeSwitchStmt:
+			switches = append(switches, node2)
+
 		case *ast.Ident:
 			if node2.Obj == nil {
+				return
+			}
+
+			if isCompositeLitKey(node2, compositeLits) {
 				return
 			}
 
@@ -399,7 +425,13 @@ func (v *varNameLen) identsAndImports(pass *analysis.Pass) ([]*ast.Ident, []*ast
 				valueSpecIdents = append(valueSpecIdents, node2)
 
 			case *ast.Field:
-				if isReceiver(objDecl, methods) && !v.checkReceiver {
+				if isReceiver(objDecl, methods) {
+					if !v.checkReceiver {
+						return
+					}
+
+					paramIdents = append(paramIdents, node2)
+
 					return
 				}
 
@@ -423,7 +455,12 @@ func (v *varNameLen) identsAndImports(pass *analysis.Pass) ([]*ast.Ident, []*ast
 		self: true,
 	})
 
-	return assignIdents, valueSpecIdents, paramIdents, returnIdents, imports
+	sort.Slice(imports, func(a, b int) bool {
+		// reversed: longest path first
+		return len(imports[a].path) > len(imports[b].path)
+	})
+
+	return assignIdents, valueSpecIdents, paramIdents, returnIdents, imports, switches
 }
 
 func importSpecToDecl(spec *ast.ImportSpec, imports []*types.Package) (importDeclaration, bool) {
@@ -555,6 +592,18 @@ func (v variable) isChannelReceiveOk() bool {
 	return true
 }
 
+// isConventional returns true if v matches a conventional Go variable/parameter name and type,
+// such as "ctx context.Context" or "t *testing.T".
+func (v variable) isConventional() bool {
+	for _, decl := range conventionalDecls {
+		if v.match(decl) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // match returns true if v matches decl.
 func (v variable) match(decl declaration) bool {
 	if v.name != decl.name {
@@ -615,8 +664,41 @@ func isReturn(field *ast.Field, funcs []*ast.FuncDecl) bool {
 	return false
 }
 
-// isConventional returns true if p is a conventional Go parameter, such as "ctx context.Context" or
-// "t *testing.T".
+// isKeyValueKey returns true if ident is a key of any of the given key/value expressions.
+func isCompositeLitKey(ident *ast.Ident, compositeLits []*ast.CompositeLit) bool {
+	for _, cl := range compositeLits {
+		if _, ok := cl.Type.(*ast.MapType); ok {
+			continue
+		}
+
+		for _, kvExpr := range cl.Elts {
+			kv, ok := kvExpr.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+
+			if kv.Key == ident {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// isTypeSwitchAssign returns true if assign is an assign statement of any of the given type switch statements.
+func isTypeSwitchAssign(assign *ast.AssignStmt, switches []*ast.TypeSwitchStmt) bool {
+	for _, s := range switches {
+		if s.Assign == assign {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isConventional returns true if v matches a conventional Go variable/parameter name and type,
+// such as "ctx context.Context" or "t *testing.T".
 func (p parameter) isConventional() bool {
 	for _, decl := range conventionalDecls {
 		if p.match(decl) {
@@ -658,17 +740,6 @@ func (d declaration) matchType(typ string) bool {
 	return d.typ == typ
 }
 
-// identAssignExpr returns the expression that is assigned to ident.
-//
-// TODO: This currently only works for simple one-to-one assignments without the use of multi-values.
-func identAssignExpr(_ *ast.Ident, assign *ast.AssignStmt) ast.Expr {
-	if len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
-		return nil
-	}
-
-	return assign.Rhs[0]
-}
-
 // shortTypeName returns the short name of typ, with respect to imports.
 // For example, if package github.com/matryer/is is imported with alias "x",
 // and typ represents []*github.com/matryer/is.I, shortTypeName will return "[]*x.I".
@@ -683,12 +754,12 @@ func shortTypeName(typ types.Type, imports []importDeclaration) string {
 	for _, imp := range imports {
 		prefix := imp.path + "."
 
-		if imp.self {
-			typStr = strings.ReplaceAll(typStr, prefix, "")
-			continue
+		replace := ""
+		if !imp.self {
+			replace = imp.name + "."
 		}
 
-		typStr = strings.ReplaceAll(typStr, prefix, imp.name+".")
+		typStr = strings.ReplaceAll(typStr, prefix, replace)
 	}
 
 	return typStr

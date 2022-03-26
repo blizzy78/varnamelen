@@ -167,3 +167,38 @@ func foo13() {
 	println()
 	println(mi)
 }
+
+func foo14() {
+	for i := range []string{"a", "b", "c"} {
+		println()
+		println()
+		println()
+		println()
+		println()
+		println()
+		println(i)
+	}
+
+	for i, s := range []string{"a", "b", "c"} {
+		println()
+		println()
+		println()
+		println()
+		println()
+		println()
+		println(i, s)
+	}
+
+	i, s := getTwo()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println()
+	println(i, s)
+}
+
+func getTwo() (int, string) {
+	return 1, "2"
+}
