@@ -5,11 +5,12 @@ import (
 	"testing"
 )
 
+// TODO: add *testing.F once we switch to Go 1.18
+
 func Variable() {
 	var (
 		ctx context.Context
 		b   *testing.B
-		f   *testing.F
 		m   *testing.M
 		pb  *testing.PB
 		t   *testing.T
@@ -22,7 +23,6 @@ func Variable() {
 	// fill
 	_ = ctx
 	_ = b
-	_ = f
 	_ = m
 	_ = pb
 	_ = t
@@ -31,7 +31,6 @@ func Variable() {
 
 func Param(ctx context.Context,
 	b *testing.B,
-	f *testing.F,
 	m *testing.M,
 	pb *testing.PB,
 	t *testing.T,
@@ -43,7 +42,6 @@ func Param(ctx context.Context,
 	// fill
 	_ = ctx
 	_ = b
-	_ = f
 	_ = m
 	_ = pb
 	_ = t
