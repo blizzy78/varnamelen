@@ -111,10 +111,6 @@ func TestVarNameLen_Run_Conventional(t *testing.T) {
 	run(t, "conventional", nil)
 }
 
-func TestVarNameLen_Run_FalsePositive(t *testing.T) {
-	run(t, "falsepositive", nil)
-}
-
 func TestVarNameLen_Run_FalseNegative_TypeAssertOk(t *testing.T) {
 	run(t, "falsenegativetypeassert", map[string]string{
 		"ignoreTypeAssertOk": "true",

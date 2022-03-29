@@ -1,4 +1,4 @@
-package warnings
+package falsepositive
 
 import "testing"
 

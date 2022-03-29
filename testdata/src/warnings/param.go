@@ -6,5 +6,16 @@ func Param(i int) { // want `parameter name 'i' is too short for the scope of it
 	// fill
 	// fill
 	// fill
-	i = 123
+	_ = i
+}
+
+func Param_FuncLit() {
+	_ = func(i int) { // want `parameter name 'i' is too short for the scope of its usage`
+		// fill
+		// fill
+		// fill
+		// fill
+		// fill
+		_ = i
+	}
 }
