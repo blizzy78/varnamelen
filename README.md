@@ -59,13 +59,9 @@ linters-settings:
       - err
     # Optional list of variable declarations that should be ignored completely. (defaults to empty list)
     # Entries must be in one of the following forms (see below for examples):
-    # - for variables, parameters, or named return values:
-    #   - <name> <type>
-    #   - <name> *<type>
-    # - for type parameters:
-    #   - <name> <type>
-    # - for constants:
-    #   - const <name>
+    # - for variables, parameters, named return values, method receivers, or type parameters:
+    #   <name> <type>  (<type> can also be a pointer/slice/map/chan/...)
+    # - for constants: const <name>
     ignore-decls:
       - c echo.Context
       - t testing.T
@@ -74,6 +70,7 @@ linters-settings:
       - i int
       - const C
       - T any
+      - m map[string]int
 ```
 
 
