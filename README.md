@@ -42,7 +42,7 @@ linters-settings:
     # The minimum length of a variable's name that is considered "long." (defaults to 3)
     # Variable names that are at least this long will be ignored.
     min-name-length: 3
-    # Check method receiver. (defaults to false)
+    # Check method receivers. (defaults to false)
     check-receiver: false
     # Check named return values. (defaults to false)
     check-return: false
