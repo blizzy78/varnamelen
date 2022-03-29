@@ -11,6 +11,12 @@ func TestVarNameLen_Run_Warnings_TypeParam(t *testing.T) {
 	})
 }
 
+func TestVarNameLen_Run_NameLen_TypeParam(t *testing.T) {
+	run(t, "namelentypeparam", map[string]string{
+		"checkTypeParam": "true",
+	})
+}
+
 func TestVarNameLen_Run_Distance_TypeParam(t *testing.T) {
 	run(t, "distancetypeparam", map[string]string{
 		"checkTypeParam": "true",

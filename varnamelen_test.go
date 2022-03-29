@@ -33,6 +33,12 @@ func TestVarNameLen_Run_NameLen_Return(t *testing.T) {
 	})
 }
 
+func TestVarNameLen_Run_NameLen_Receiver(t *testing.T) {
+	run(t, "namelenreceiver", map[string]string{
+		"checkReceiver": "true",
+	})
+}
+
 func TestVarNameLen_Run_Distance(t *testing.T) {
 	run(t, "distance", nil)
 }
