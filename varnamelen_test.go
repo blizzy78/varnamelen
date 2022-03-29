@@ -4,99 +4,144 @@ import (
 	"os"
 	"testing"
 
-	"github.com/matryer/is"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestVarNameLen_Run(t *testing.T) {
-	a := NewAnalyzer()
-	_ = a.Flags.Set("minNameLength", "4")
-	_ = a.Flags.Set("ignoreNames", "i, ip, CI")
-
-	wd, _ := os.Getwd()
-	analysistest.Run(t, wd+"/testdata", a, "test")
+func TestVarNameLen_Run_Warnings(t *testing.T) {
+	run(t, "warnings", nil)
 }
 
-func TestVarNameLen_Run_CheckReceiver(t *testing.T) {
-	a := NewAnalyzer()
-	_ = a.Flags.Set("minNameLength", "4")
-	_ = a.Flags.Set("checkReceiver", "true")
-
-	wd, _ := os.Getwd()
-	analysistest.Run(t, wd+"/testdata", a, "receiver")
+func TestVarNameLen_Run_Warnings_Return(t *testing.T) {
+	run(t, "warningsreturn", map[string]string{
+		"checkReturn": "true",
+	})
 }
 
-func TestVarNameLen_Run_CheckReturn(t *testing.T) {
-	analyzer := NewAnalyzer()
-	_ = analyzer.Flags.Set("minNameLength", "4")
-	_ = analyzer.Flags.Set("ignoreNames", "i")
-	_ = analyzer.Flags.Set("checkReturn", "true")
+func TestVarNameLen_Run_Warnings_Receiver(t *testing.T) {
+	run(t, "warningsreceiver", map[string]string{
+		"checkReceiver": "true",
+	})
+}
 
-	wd, _ := os.Getwd()
-	analysistest.Run(t, wd+"/testdata", analyzer, "return")
+func TestVarNameLen_Run_NameLen(t *testing.T) {
+	run(t, "namelen", nil)
+}
+
+func TestVarNameLen_Run_NameLen_Return(t *testing.T) {
+	run(t, "namelenreturn", map[string]string{
+		"checkReturn": "true",
+	})
+}
+
+func TestVarNameLen_Run_Distance(t *testing.T) {
+	run(t, "distance", nil)
+}
+
+func TestVarNameLen_Run_Distance_Return(t *testing.T) {
+	run(t, "distancereturn", map[string]string{
+		"checkReturn": "true",
+	})
+}
+
+func TestVarNameLen_Run_Distance_Receiver(t *testing.T) {
+	run(t, "distancereceiver", map[string]string{
+		"checkReceiver": "true",
+	})
+}
+
+func TestVarNameLen_Run_IgnoreNames(t *testing.T) {
+	run(t, "ignorenames", map[string]string{
+		"ignoreNames": "i, I",
+	})
+}
+
+func TestVarNameLen_Run_IgnoreNames_Return(t *testing.T) {
+	run(t, "ignorenamesreturn", map[string]string{
+		"ignoreNames": "i",
+		"checkReturn": "true",
+	})
+}
+
+func TestVarNameLen_Run_IgnoreNames_Receiver(t *testing.T) {
+	run(t, "ignorenamesreceiver", map[string]string{
+		"ignoreNames":   "f",
+		"checkReceiver": "true",
+	})
+}
+
+func TestVarNameLen_Run_IgnoreDecls(t *testing.T) {
+	run(t, "ignoredecls", map[string]string{
+		"ignoreDecls": "i int, i map[string]string, i *bytes.Buffer, i *strs.Builder, const I",
+	})
+}
+
+func TestVarNameLen_Run_IgnoreDecls_Return(t *testing.T) {
+	run(t, "ignoredeclsreturn", map[string]string{
+		"ignoreDecls": "i int",
+		"checkReturn": "true",
+	})
+}
+
+func TestVarNameLen_Run_IgnoreDecls_Receiver(t *testing.T) {
+	run(t, "ignoredeclsreceiver", map[string]string{
+		"ignoreDecls":   "f foo, f *foo",
+		"checkReceiver": "true",
+	})
 }
 
 func TestVarNameLen_Run_IgnoreTypeAssertOk(t *testing.T) {
-	analyzer := NewAnalyzer()
-	_ = analyzer.Flags.Set("minNameLength", "4")
-	_ = analyzer.Flags.Set("ignoreTypeAssertOk", "true")
+	run(t, "typeassert", map[string]string{
+		"ignoreTypeAssertOk": "true",
+	})
+}
 
-	wd, _ := os.Getwd()
-	analysistest.Run(t, wd+"/testdata", analyzer, "type-assert-ok")
+func TestVarNameLen_Run_IgnoreChanRecvOk(t *testing.T) {
+	run(t, "chanrecv", map[string]string{
+		"ignoreChanRecvOk": "true",
+	})
 }
 
 func TestVarNameLen_Run_IgnoreMapIndexOk(t *testing.T) {
-	analyzer := NewAnalyzer()
-	_ = analyzer.Flags.Set("minNameLength", "4")
-	_ = analyzer.Flags.Set("ignoreMapIndexOk", "true")
-
-	wd, _ := os.Getwd()
-	analysistest.Run(t, wd+"/testdata", analyzer, "map-index-ok")
+	run(t, "mapindex", map[string]string{
+		"ignoreMapIndexOk": "true",
+	})
 }
 
-func TestVarNameLen_Run_IgnoreChannelReceiveOk(t *testing.T) {
-	analyzer := NewAnalyzer()
-	_ = analyzer.Flags.Set("minNameLength", "4")
-	_ = analyzer.Flags.Set("ignoreChanRecvOk", "true")
-
-	wd, _ := os.Getwd()
-	analysistest.Run(t, wd+"/testdata", analyzer, "chan-recv-ok")
+func TestVarNameLen_Run_Conventional(t *testing.T) {
+	run(t, "conventional", nil)
 }
 
-func TestVarNameLen_Run_IgnoreDeclarations(t *testing.T) {
-	analyzer := NewAnalyzer()
-	_ = analyzer.Flags.Set("minNameLength", "4")
-	_ = analyzer.Flags.Set("checkReturn", "true")
-	_ = analyzer.Flags.Set("ignoreDecls", "c context.Context, b bb.Buffer, b *strings.Builder, d *bb.Buffer, i int, ip *int, const C, f func(), m map[int]*bb.Buffer, mi int, s string")
-
-	wd, _ := os.Getwd()
-	analysistest.Run(t, wd+"/testdata", analyzer, "decl")
+func TestVarNameLen_Run_FalsePositive(t *testing.T) {
+	run(t, "falsepositive", nil)
 }
 
-func TestParseDeclaration(t *testing.T) {
-	tests := []struct {
-		givenDecl string
-		wantDecl  declaration
-	}{
-		{
-			givenDecl: "t *testing.T",
-			wantDecl:  declaration{name: "t", typ: "*testing.T"},
-		},
-		{
-			givenDecl: "c echo.Context",
-			wantDecl:  declaration{name: "c", typ: "echo.Context"},
-		},
-		{
-			givenDecl: "const C",
-			wantDecl:  declaration{name: "C", constant: true},
-		},
+func TestVarNameLen_Run_FalseNegative_TypeAssertOk(t *testing.T) {
+	run(t, "falsenegativetypeassert", map[string]string{
+		"ignoreTypeAssertOk": "true",
+	})
+}
+
+func TestVarNameLen_Run_FalseNegative_ChanRecvOk(t *testing.T) {
+	run(t, "falsenegativechanrecv", map[string]string{
+		"ignoreChanRecvOk": "true",
+	})
+}
+
+func TestVarNameLen_Run_FalseNegative_MapIndexOk(t *testing.T) {
+	run(t, "falsenegativemapindex", map[string]string{
+		"ignoreMapIndexOk": "true",
+	})
+}
+
+func run(t *testing.T, pkg string, flags map[string]string) {
+	t.Helper()
+
+	analyzer := NewAnalyzer()
+
+	for k, v := range flags {
+		_ = analyzer.Flags.Set(k, v)
 	}
 
-	for _, test := range tests {
-		t.Run(test.givenDecl, func(t *testing.T) {
-			is := is.New(t)
-
-			is.Equal(parseDeclaration(test.givenDecl), test.wantDecl)
-		})
-	}
+	wd, _ := os.Getwd()
+	analysistest.Run(t, wd+"/testdata", analyzer, pkg)
 }

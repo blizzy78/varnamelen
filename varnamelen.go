@@ -121,7 +121,7 @@ var conventionalDecls = []declaration{
 	parseDeclaration("tb testing.TB"),
 }
 
-// NewAnalyzer returns a new analyzer that checks variable name length.
+// NewAnalyzer returns a new analyzer.
 func NewAnalyzer() *analysis.Analyzer {
 	vnl := varNameLen{
 		maxDistance:        defaultMaxDistance,
@@ -138,7 +138,7 @@ func NewAnalyzer() *analysis.Analyzer {
 			"to comprehend.",
 
 		Run: func(pass *analysis.Pass) (interface{}, error) {
-			vnl.run(pass)
+			(&vnl).run(pass)
 			return nil, nil
 		},
 
