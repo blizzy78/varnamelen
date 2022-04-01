@@ -9,7 +9,7 @@ A Go Analyzer that checks that the length of a variable's name matches its usage
 Variables with short names can be hard to use if the variable is used over a longer span of lines of code.
 A longer variable name may be easier to comprehend.
 
-The analyzer also checks method receiver names, named return values, and type parameter names.
+The analyzer also checks constants, parameters, named return values, method receivers, and type parameters.
 
 Arbitrary declarations such as `f *foo` can be ignored, as well as idiomatic `ok` variables.
 Conventional Go parameters such as `ctx context.Context` or `t *testing.T` will always be ignored.

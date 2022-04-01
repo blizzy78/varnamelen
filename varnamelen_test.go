@@ -7,135 +7,135 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestVarNameLen_Run_Warnings(t *testing.T) {
-	run(t, "warnings", nil)
+func TestRun_Warnings(t *testing.T) {
+	runTest(t, "warnings", nil)
 }
 
-func TestVarNameLen_Run_Warnings_Return(t *testing.T) {
-	run(t, "warningsreturn", map[string]string{
+func TestRun_Warnings_Return(t *testing.T) {
+	runTest(t, "warningsreturn", map[string]string{
 		"checkReturn": "true",
 	})
 }
 
-func TestVarNameLen_Run_Warnings_Receiver(t *testing.T) {
-	run(t, "warningsreceiver", map[string]string{
+func TestRun_Warnings_Receiver(t *testing.T) {
+	runTest(t, "warningsreceiver", map[string]string{
 		"checkReceiver": "true",
 	})
 }
 
-func TestVarNameLen_Run_NameLen(t *testing.T) {
-	run(t, "namelen", nil)
+func TestRun_NameLen(t *testing.T) {
+	runTest(t, "namelen", nil)
 }
 
-func TestVarNameLen_Run_NameLen_Return(t *testing.T) {
-	run(t, "namelenreturn", map[string]string{
+func TestRun_NameLen_Return(t *testing.T) {
+	runTest(t, "namelenreturn", map[string]string{
 		"checkReturn": "true",
 	})
 }
 
-func TestVarNameLen_Run_NameLen_Receiver(t *testing.T) {
-	run(t, "namelenreceiver", map[string]string{
+func TestRun_NameLen_Receiver(t *testing.T) {
+	runTest(t, "namelenreceiver", map[string]string{
 		"checkReceiver": "true",
 	})
 }
 
-func TestVarNameLen_Run_Distance(t *testing.T) {
-	run(t, "distance", nil)
+func TestRun_Distance(t *testing.T) {
+	runTest(t, "distance", nil)
 }
 
-func TestVarNameLen_Run_Distance_Return(t *testing.T) {
-	run(t, "distancereturn", map[string]string{
+func TestRun_Distance_Return(t *testing.T) {
+	runTest(t, "distancereturn", map[string]string{
 		"checkReturn": "true",
 	})
 }
 
-func TestVarNameLen_Run_Distance_Receiver(t *testing.T) {
-	run(t, "distancereceiver", map[string]string{
+func TestRun_Distance_Receiver(t *testing.T) {
+	runTest(t, "distancereceiver", map[string]string{
 		"checkReceiver": "true",
 	})
 }
 
-func TestVarNameLen_Run_IgnoreNames(t *testing.T) {
-	run(t, "ignorenames", map[string]string{
+func TestRun_IgnoreNames(t *testing.T) {
+	runTest(t, "ignorenames", map[string]string{
 		"ignoreNames": "i, I",
 	})
 }
 
-func TestVarNameLen_Run_IgnoreNames_Return(t *testing.T) {
-	run(t, "ignorenamesreturn", map[string]string{
+func TestRun_IgnoreNames_Return(t *testing.T) {
+	runTest(t, "ignorenamesreturn", map[string]string{
 		"ignoreNames": "i",
 		"checkReturn": "true",
 	})
 }
 
-func TestVarNameLen_Run_IgnoreNames_Receiver(t *testing.T) {
-	run(t, "ignorenamesreceiver", map[string]string{
+func TestRun_IgnoreNames_Receiver(t *testing.T) {
+	runTest(t, "ignorenamesreceiver", map[string]string{
 		"ignoreNames":   "f",
 		"checkReceiver": "true",
 	})
 }
 
-func TestVarNameLen_Run_IgnoreDecls(t *testing.T) {
-	run(t, "ignoredecls", map[string]string{
+func TestRun_IgnoreDecls(t *testing.T) {
+	runTest(t, "ignoredecls", map[string]string{
 		"ignoreDecls": "i int, i map[string]string, i *bytes.Buffer, i *strs.Builder, const I",
 	})
 }
 
-func TestVarNameLen_Run_IgnoreDecls_Return(t *testing.T) {
-	run(t, "ignoredeclsreturn", map[string]string{
+func TestRun_IgnoreDecls_Return(t *testing.T) {
+	runTest(t, "ignoredeclsreturn", map[string]string{
 		"ignoreDecls": "i int",
 		"checkReturn": "true",
 	})
 }
 
-func TestVarNameLen_Run_IgnoreDecls_Receiver(t *testing.T) {
-	run(t, "ignoredeclsreceiver", map[string]string{
+func TestRun_IgnoreDecls_Receiver(t *testing.T) {
+	runTest(t, "ignoredeclsreceiver", map[string]string{
 		"ignoreDecls":   "f foo, f *foo",
 		"checkReceiver": "true",
 	})
 }
 
-func TestVarNameLen_Run_IgnoreTypeAssertOk(t *testing.T) {
-	run(t, "typeassert", map[string]string{
+func TestRun_IgnoreTypeAssertOk(t *testing.T) {
+	runTest(t, "typeassert", map[string]string{
 		"ignoreTypeAssertOk": "true",
 	})
 }
 
-func TestVarNameLen_Run_IgnoreChanRecvOk(t *testing.T) {
-	run(t, "chanrecv", map[string]string{
+func TestRun_IgnoreChanRecvOk(t *testing.T) {
+	runTest(t, "chanrecv", map[string]string{
 		"ignoreChanRecvOk": "true",
 	})
 }
 
-func TestVarNameLen_Run_IgnoreMapIndexOk(t *testing.T) {
-	run(t, "mapindex", map[string]string{
+func TestRun_IgnoreMapIndexOk(t *testing.T) {
+	runTest(t, "mapindex", map[string]string{
 		"ignoreMapIndexOk": "true",
 	})
 }
 
-func TestVarNameLen_Run_Conventional(t *testing.T) {
-	run(t, "conventional", nil)
+func TestRun_Conventional(t *testing.T) {
+	runTest(t, "conventional", nil)
 }
 
-func TestVarNameLen_Run_FalseNegative_TypeAssertOk(t *testing.T) {
-	run(t, "falsenegativetypeassert", map[string]string{
+func TestRun_FalseNegative_TypeAssertOk(t *testing.T) {
+	runTest(t, "falsenegativetypeassert", map[string]string{
 		"ignoreTypeAssertOk": "true",
 	})
 }
 
-func TestVarNameLen_Run_FalseNegative_ChanRecvOk(t *testing.T) {
-	run(t, "falsenegativechanrecv", map[string]string{
+func TestRun_FalseNegative_ChanRecvOk(t *testing.T) {
+	runTest(t, "falsenegativechanrecv", map[string]string{
 		"ignoreChanRecvOk": "true",
 	})
 }
 
-func TestVarNameLen_Run_FalseNegative_MapIndexOk(t *testing.T) {
-	run(t, "falsenegativemapindex", map[string]string{
+func TestRun_FalseNegative_MapIndexOk(t *testing.T) {
+	runTest(t, "falsenegativemapindex", map[string]string{
 		"ignoreMapIndexOk": "true",
 	})
 }
 
-func run(t *testing.T, pkg string, flags map[string]string) {
+func runTest(t *testing.T, pkg string, flags map[string]string) {
 	t.Helper()
 
 	analyzer := NewAnalyzer()

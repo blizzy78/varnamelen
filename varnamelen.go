@@ -2,7 +2,6 @@ package varnamelen
 
 import (
 	"go/ast"
-	"go/token"
 	"go/types"
 	"sort"
 	"strings"
@@ -12,17 +11,15 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-// varNameLen is an analyzer that checks that the length of a variable's name matches its usage scope.
-// It will create a report for a variable's assignment if that variable has a short name, but its
-// usage scope is not considered "small."
-type varNameLen struct {
-	// maxDistance is the longest distance, in source lines, that is being considered a "small scope."
+// configuration is the configuration of this analyzer.
+type configuration struct {
+	// maxDistance is the longest distance, in source lines, that is being considered a "small" scope.
 	maxDistance int
 
-	// minNameLength is the minimum length of a variable's name that is considered "long."
+	// minNameLength is the minimum length of a name that is considered "long."
 	minNameLength int
 
-	// ignoreNames is an optional list of variable names that should be ignored completely.
+	// ignoreNames is an optional list of names that should be ignored completely.
 	ignoreNames stringsValue
 
 	// checkReceiver determines whether method receivers should be checked.
@@ -31,129 +28,110 @@ type varNameLen struct {
 	// checkReturn determines whether named return values should be checked.
 	checkReturn bool
 
+	// checkTypeParam determines whether type parameters should be checked.
+	checkTypeParam bool
+
 	// ignoreTypeAssertOk determines whether "ok" variables that hold the bool return value of a type assertion should be ignored.
 	ignoreTypeAssertOk bool
 
 	// ignoreMapIndexOk determines whether "ok" variables that hold the bool return value of a map index should be ignored.
 	ignoreMapIndexOk bool
 
-	// ignoreChannelReceiveOk determines whether "ok" variables that hold the bool return value of a channel receive should be ignored.
-	ignoreChannelReceiveOk bool
+	// ignoreChanRecvOk determines whether "ok" variables that hold the bool return value of a channel receive should be ignored.
+	ignoreChanRecvOk bool
 
-	// ignoreDeclarations is an optional list of variable declarations that should be ignored completely.
-	ignoreDeclarations declarationsValue
-
-	// checkTypeParameters determines whether type parameters should be checked.
-	checkTypeParameters bool
+	// ignoreDecls is an optional list of declarations that should be ignored completely.
+	ignoreDecls declarationsValue
 }
 
-// variable represents a declared variable.
-type variable struct {
-	// name is the name of the variable.
-	name string
+// identsImportsSwitchesResult is the result of calling the identsImportsSwitches function.
+type identsImportsSwitchesResult struct {
+	// assignIdents is a list of idents used in assign statements.
+	assignIdents []*ast.Ident
 
-	// constant is true if the variable is actually a constant.
-	constant bool
+	// valueSpecIdents is a list of idents used in value spec (var) statements.
+	valueSpecIdents []*ast.Ident
 
-	// typ is the type of the variable.
-	typ string
+	// paramIdents is a list of idents used in parameters.
+	paramIdents []*ast.Ident
 
-	// assign is the assign statement that declares the variable.
-	assign *ast.AssignStmt
+	// returnIdents is a list of idents used in named return values.
+	returnIdents []*ast.Ident
 
-	// valueSpec is the value specification that declares the variable.
-	valueSpec *ast.ValueSpec
+	// receiverIdents is a list of idents used in method receivers.
+	receiverIdents []*ast.Ident
+
+	// typeParamIdents is a list of idents used in type parameters.
+	typeParamIdents []*ast.Ident
+
+	// imports is a list of import declarations.
+	imports []importDeclaration
+
+	// switches is a list of type switch statements.
+	switches []*ast.TypeSwitchStmt
 }
 
-// parameter represents a declared function or method parameter.
-type parameter struct {
-	// name is the name of the parameter.
-	name string
+// distancesResult is the result of calling the distances function.
+type distancesResult struct {
+	// variableToDist is a map of variables to their longest usage distance.
+	variableToDist map[variable]int
 
-	// typ is the type of the parameter.
-	typ string
+	// constantToDist is a map of constants to their longest usage distance.
+	constantToDist map[constant]int
 
-	// field is the declaration of the parameter.
-	field *ast.Field
-}
+	// paramToDist is a map of parameters to their longest usage distance.
+	paramToDist map[parameter]int
 
-// typeParam represents a declared type parameter.
-type typeParam struct {
-	// name is the name of the type parameter.
-	name string
+	// returnToDist is a map of named return values to their longest usage distance.
+	returnToDist map[namedReturn]int
 
-	// typ is the type of the type parameter.
-	typ string
+	// receiverToDist is a map of method receivers to their longest usage distance.
+	receiverToDist map[receiver]int
 
-	// field is the field that declares the type parameter.
-	field *ast.Field
-}
-
-// declaration is a variable declaration.
-type declaration struct {
-	// name is the name of the variable.
-	name string
-
-	// constant is true if the variable is actually a constant.
-	constant bool
-
-	// typ is the type of the variable. Not used for constants.
-	typ string
-}
-
-// importDeclaration is an import declaration.
-type importDeclaration struct {
-	// name is the short name or alias for the imported package. This is either the package's default name,
-	// or the alias specified in the import statement.
-	// Not used if self is true.
-	name string
-
-	// path is the full path to the imported package.
-	path string
-
-	// self is true when this is an implicit import declaration for the current package.
-	self bool
+	// typeParamToDist is a map of type parameters to their longest usage distance.
+	typeParamToDist map[typeParam]int
 }
 
 const (
-	// defaultMaxDistance is the default value for the maximum distance between the declaration of a variable and its usage
-	// that is considered a "small scope."
+	// defaultMaxDistance is the default value for the maximum distance between the declaration of an ident and its usage
+	// that is considered a "small" scope.
 	defaultMaxDistance = 5
 
-	// defaultMinNameLength is the default value for the minimum length of a variable's name that is considered "long."
+	// defaultMinNameLength is the default value for the minimum length of an ident's name that is considered "long."
 	defaultMinNameLength = 3
 )
 
-// conventionalDecls is a list of conventional variable declarations.
-var conventionalDecls = []declaration{
-	parseDeclaration("ctx context.Context"),
+// conventionalDecls is a list of conventional declarations. These will always be ignored.
+var conventionalDecls = []identDeclaration{
+	mustParseIdentDeclaration("ctx context.Context"),
 
-	parseDeclaration("b *testing.B"),
-	parseDeclaration("f *testing.F"),
-	parseDeclaration("m *testing.M"),
-	parseDeclaration("pb *testing.PB"),
-	parseDeclaration("t *testing.T"),
-	parseDeclaration("tb testing.TB"),
+	mustParseIdentDeclaration("b *testing.B"),
+	mustParseIdentDeclaration("f *testing.F"),
+	mustParseIdentDeclaration("m *testing.M"),
+	mustParseIdentDeclaration("pb *testing.PB"),
+	mustParseIdentDeclaration("t *testing.T"),
+	mustParseIdentDeclaration("tb testing.TB"),
 }
 
 // NewAnalyzer returns a new analyzer.
 func NewAnalyzer() *analysis.Analyzer {
-	vnl := varNameLen{
-		maxDistance:        defaultMaxDistance,
-		minNameLength:      defaultMinNameLength,
-		ignoreNames:        stringsValue{},
-		ignoreDeclarations: declarationsValue{},
+	cfg := configuration{
+		maxDistance:   defaultMaxDistance,
+		minNameLength: defaultMinNameLength,
+		ignoreNames:   stringsValue{},
+		ignoreDecls:   declarationsValue{},
 	}
 
 	analyzer := analysis.Analyzer{
 		Name: "varnamelen",
 		Doc: "checks that the length of a variable's name matches its scope\n\n" +
-			"A variable with a short name can be hard to use if the variable is used\n" +
+			"Variables with short names can be hard to use if the variable is used\n" +
 			"over a longer span of lines of code. A longer variable name may be easier\n" +
-			"to comprehend.",
+			"to comprehend. Also checks constants, parameters, named return values,\n" +
+			"method receivers, and type parameters",
 
 		Run: func(pass *analysis.Pass) (interface{}, error) {
-			(&vnl).run(pass)
+			run(pass, cfg)
 			return nil, nil
 		},
 
@@ -162,176 +140,53 @@ func NewAnalyzer() *analysis.Analyzer {
 		},
 	}
 
-	analyzer.Flags.IntVar(&vnl.maxDistance, "maxDistance", defaultMaxDistance, "maximum number of lines of variable usage scope considered 'short'")
-	analyzer.Flags.IntVar(&vnl.minNameLength, "minNameLength", defaultMinNameLength, "minimum length of variable name considered 'long'")
-	analyzer.Flags.Var(&vnl.ignoreNames, "ignoreNames", "comma-separated list of ignored variable names")
-	analyzer.Flags.BoolVar(&vnl.checkReceiver, "checkReceiver", false, "check method receivers")
-	analyzer.Flags.BoolVar(&vnl.checkReturn, "checkReturn", false, "check named return values")
-	analyzer.Flags.BoolVar(&vnl.ignoreTypeAssertOk, "ignoreTypeAssertOk", false, "ignore 'ok' variables that hold the bool return value of a type assertion")
-	analyzer.Flags.BoolVar(&vnl.ignoreMapIndexOk, "ignoreMapIndexOk", false, "ignore 'ok' variables that hold the bool return value of a map index")
-	analyzer.Flags.BoolVar(&vnl.ignoreChannelReceiveOk, "ignoreChanRecvOk", false, "ignore 'ok' variables that hold the bool return value of a channel receive")
-	analyzer.Flags.Var(&vnl.ignoreDeclarations, "ignoreDecls", "comma-separated list of ignored variable declarations")
-	analyzer.Flags.BoolVar(&vnl.checkTypeParameters, "checkTypeParam", false, "check type parameters")
+	analyzer.Flags.IntVar(&cfg.maxDistance, "maxDistance", cfg.maxDistance, "maximum number of lines considered a 'short' scope")
+	analyzer.Flags.IntVar(&cfg.minNameLength, "minNameLength", cfg.minNameLength, "minimum length of a name considered 'long'")
+	analyzer.Flags.Var(&cfg.ignoreNames, "ignoreNames", "comma-separated list of ignored names")
+	analyzer.Flags.BoolVar(&cfg.checkReceiver, "checkReceiver", cfg.checkReceiver, "check method receivers")
+	analyzer.Flags.BoolVar(&cfg.checkReturn, "checkReturn", cfg.checkReturn, "check named return values")
+	analyzer.Flags.BoolVar(&cfg.ignoreTypeAssertOk, "ignoreTypeAssertOk", cfg.ignoreTypeAssertOk, "ignore 'ok' variables that hold the bool return value of a type assertion")
+	analyzer.Flags.BoolVar(&cfg.ignoreMapIndexOk, "ignoreMapIndexOk", cfg.ignoreMapIndexOk, "ignore 'ok' variables that hold the bool return value of a map index")
+	analyzer.Flags.BoolVar(&cfg.ignoreChanRecvOk, "ignoreChanRecvOk", cfg.ignoreChanRecvOk, "ignore 'ok' variables that hold the bool return value of a channel receive")
+	analyzer.Flags.Var(&cfg.ignoreDecls, "ignoreDecls", "comma-separated list of ignored declarations")
+	analyzer.Flags.BoolVar(&cfg.checkTypeParam, "checkTypeParam", cfg.checkTypeParam, "check type parameters")
 
 	return &analyzer
 }
 
-// Run applies v to a package, according to pass.
-func (v *varNameLen) run(pass *analysis.Pass) {
-	varToDist, paramToDist, returnToDist, typeParamToDist := v.distances(pass)
+// run applies the analysis to pass, according to cfg.
+func run(pass *analysis.Pass, cfg configuration) {
+	dist := distances(pass, cfg)
 
-	v.checkVariables(pass, varToDist)
-	v.checkParams(pass, paramToDist)
-	v.checkReturns(pass, returnToDist)
-	v.checkTypeParams(pass, typeParamToDist)
+	checkVariables(pass, dist.variableToDist, cfg)
+	checkConstants(pass, dist.constantToDist, cfg)
+	checkParams(pass, dist.paramToDist, cfg)
+	checkReturns(pass, dist.returnToDist, cfg)
+	checkReceivers(pass, dist.receiverToDist, cfg)
+	checkTypeParams(pass, dist.typeParamToDist, cfg)
 }
 
-// checkVariables applies v to variables in varToDist.
-func (v *varNameLen) checkVariables(pass *analysis.Pass, varToDist map[variable]int) { //nolint:gocognit // it's not that complicated
-	for variable, dist := range varToDist {
-		if v.ignoreNames.contains(variable.name) {
-			continue
-		}
-
-		if v.ignoreDeclarations.matchVariable(variable) {
-			continue
-		}
-
-		if v.checkNameAndDistance(variable.name, dist) {
-			continue
-		}
-
-		if v.checkTypeAssertOk(variable) {
-			continue
-		}
-
-		if v.checkMapIndexOk(variable) {
-			continue
-		}
-
-		if v.checkChannelReceiveOk(variable) {
-			continue
-		}
-
-		if variable.isConventional() {
-			continue
-		}
-
-		if variable.assign != nil {
-			pass.Reportf(variable.assign.Pos(), "%s name '%s' is too short for the scope of its usage", variable.kindName(), variable.name)
-			continue
-		}
-
-		pass.Reportf(variable.valueSpec.Pos(), "%s name '%s' is too short for the scope of its usage", variable.kindName(), variable.name)
-	}
-}
-
-// checkParams applies v to parameters in paramToDist.
-func (v *varNameLen) checkParams(pass *analysis.Pass, paramToDist map[parameter]int) {
-	for param, dist := range paramToDist {
-		if v.ignoreNames.contains(param.name) {
-			continue
-		}
-
-		if v.ignoreDeclarations.matchParameter(param) {
-			continue
-		}
-
-		if v.checkNameAndDistance(param.name, dist) {
-			continue
-		}
-
-		if param.isConventional() {
-			continue
-		}
-
-		pass.Reportf(param.field.Pos(), "parameter name '%s' is too short for the scope of its usage", param.name)
-	}
-}
-
-// checkReturns applies v to named return values in returnToDist.
-func (v *varNameLen) checkReturns(pass *analysis.Pass, returnToDist map[parameter]int) {
-	for returnValue, dist := range returnToDist {
-		if v.ignoreNames.contains(returnValue.name) {
-			continue
-		}
-
-		if v.ignoreDeclarations.matchParameter(returnValue) {
-			continue
-		}
-
-		if v.checkNameAndDistance(returnValue.name, dist) {
-			continue
-		}
-
-		pass.Reportf(returnValue.field.Pos(), "return value name '%s' is too short for the scope of its usage", returnValue.name)
-	}
-}
-
-// checkTypeParams applies v to type parameters in paramToDist.
-func (v *varNameLen) checkTypeParams(pass *analysis.Pass, paramToDist map[typeParam]int) {
-	for param, dist := range paramToDist {
-		if v.ignoreNames.contains(param.name) {
-			continue
-		}
-
-		if v.ignoreDeclarations.matchTypeParameter(param) {
-			continue
-		}
-
-		if v.checkNameAndDistance(param.name, dist) {
-			continue
-		}
-
-		pass.Reportf(param.field.Pos(), "type parameter name '%s' is too short for the scope of its usage", param.name)
-	}
-}
-
-// checkNameAndDistance returns true if name or dist are considered "short".
-func (v *varNameLen) checkNameAndDistance(name string, dist int) bool {
-	if len(name) >= v.minNameLength {
-		return true
+// distances returns maps of idents to their longest usage distance.
+func distances(pass *analysis.Pass, cfg configuration) distancesResult {
+	result := distancesResult{
+		variableToDist:  map[variable]int{},
+		constantToDist:  map[constant]int{},
+		paramToDist:     map[parameter]int{},
+		returnToDist:    map[namedReturn]int{},
+		receiverToDist:  map[receiver]int{},
+		typeParamToDist: map[typeParam]int{},
 	}
 
-	if dist <= v.maxDistance {
-		return true
-	}
+	idents := identsImportsSwitches(pass, cfg)
 
-	return false
-}
-
-// checkTypeAssertOk returns true if "ok" variables that hold the bool return value of a type assertion
-// should be ignored, and if vari is such a variable.
-func (v *varNameLen) checkTypeAssertOk(vari variable) bool {
-	return v.ignoreTypeAssertOk && vari.isTypeAssertOk()
-}
-
-// checkMapIndexOk returns true if "ok" variables that hold the bool return value of a map index
-// should be ignored, and if vari is such a variable.
-func (v *varNameLen) checkMapIndexOk(vari variable) bool {
-	return v.ignoreMapIndexOk && vari.isMapIndexOk()
-}
-
-// checkChannelReceiveOk returns true if "ok" variables that hold the bool return value of a channel receive
-// should be ignored, and if vari is such a variable.
-func (v *varNameLen) checkChannelReceiveOk(vari variable) bool {
-	return v.ignoreChannelReceiveOk && vari.isChannelReceiveOk()
-}
-
-// distances returns maps of variables, parameters, return values, and type parameters mapping to their longest usage distances.
-func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[parameter]int, map[parameter]int, map[typeParam]int) {
-	assignIdents, valueSpecIdents, paramIdents, returnIdents, typeParamIdents, imports, switches := v.identsAndImports(pass)
-
-	varToDist := map[variable]int{}
-
-	for _, ident := range assignIdents {
+	for _, ident := range idents.assignIdents {
 		assign := ident.Obj.Decl.(*ast.AssignStmt) //nolint:forcetypeassert // check is done in identsAndImports
 
 		var typ string
-		if isTypeSwitchAssign(assign, switches) {
+		if isTypeSwitchAssign(assign, idents.switches) {
 			typ = "<type-switched>"
 		} else {
-			typ = shortTypeName(pass.TypesInfo.TypeOf(ident), imports)
+			typ = shortTypeName(pass.TypesInfo.TypeOf(ident), idents.imports)
 		}
 
 		variable := variable{
@@ -342,79 +197,96 @@ func (v *varNameLen) distances(pass *analysis.Pass) (map[variable]int, map[param
 
 		useLine := pass.Fset.Position(ident.NamePos).Line
 		declLine := pass.Fset.Position(assign.Pos()).Line
-		varToDist[variable] = useLine - declLine
+		result.variableToDist[variable] = useLine - declLine
 	}
 
-	for _, ident := range valueSpecIdents {
+	for _, ident := range idents.valueSpecIdents {
 		valueSpec := ident.Obj.Decl.(*ast.ValueSpec) //nolint:forcetypeassert // check is done in identsAndImports
-
-		variable := variable{
-			name:      ident.Name,
-			constant:  ident.Obj.Kind == ast.Con,
-			typ:       shortTypeName(pass.TypesInfo.TypeOf(ident), imports),
-			valueSpec: valueSpec,
-		}
 
 		useLine := pass.Fset.Position(ident.NamePos).Line
 		declLine := pass.Fset.Position(valueSpec.Pos()).Line
-		varToDist[variable] = useLine - declLine
+
+		if ident.Obj.Kind == ast.Con {
+			constant := constant{
+				name:      ident.Name,
+				valueSpec: valueSpec,
+			}
+
+			result.constantToDist[constant] = useLine - declLine
+		} else {
+			variable := variable{
+				name:      ident.Name,
+				typ:       shortTypeName(pass.TypesInfo.TypeOf(ident), idents.imports),
+				valueSpec: valueSpec,
+			}
+
+			result.variableToDist[variable] = useLine - declLine
+		}
 	}
 
-	paramToDist := map[parameter]int{}
-
-	for _, ident := range paramIdents {
+	for _, ident := range idents.paramIdents {
 		field := ident.Obj.Decl.(*ast.Field) //nolint:forcetypeassert // check is done in identsAndImports
 
 		param := parameter{
 			name:  ident.Name,
-			typ:   shortTypeName(pass.TypesInfo.TypeOf(field.Type), imports),
+			typ:   shortTypeName(pass.TypesInfo.TypeOf(field.Type), idents.imports),
 			field: field,
 		}
 
 		useLine := pass.Fset.Position(ident.NamePos).Line
 		declLine := pass.Fset.Position(field.Pos()).Line
-		paramToDist[param] = useLine - declLine
+		result.paramToDist[param] = useLine - declLine
 	}
 
-	returnToDist := map[parameter]int{}
-
-	for _, ident := range returnIdents {
+	for _, ident := range idents.returnIdents {
 		field := ident.Obj.Decl.(*ast.Field) //nolint:forcetypeassert // check is done in identsAndImports
 
-		param := parameter{
+		param := namedReturn{
 			name:  ident.Name,
-			typ:   shortTypeName(pass.TypesInfo.TypeOf(ident), imports),
+			typ:   shortTypeName(pass.TypesInfo.TypeOf(ident), idents.imports),
 			field: field,
 		}
 
 		useLine := pass.Fset.Position(ident.NamePos).Line
 		declLine := pass.Fset.Position(field.Pos()).Line
-		returnToDist[param] = useLine - declLine
+		result.returnToDist[param] = useLine - declLine
 	}
 
-	typeParamToDist := map[typeParam]int{}
+	for _, ident := range idents.receiverIdents {
+		field := ident.Obj.Decl.(*ast.Field) //nolint:forcetypeassert // check is done in identsAndImports
 
-	for _, ident := range typeParamIdents {
+		param := receiver{
+			name:  ident.Name,
+			typ:   shortTypeName(pass.TypesInfo.TypeOf(field.Type), idents.imports),
+			field: field,
+		}
+
+		useLine := pass.Fset.Position(ident.NamePos).Line
+		declLine := pass.Fset.Position(field.Pos()).Line
+		result.receiverToDist[param] = useLine - declLine
+	}
+
+	for _, ident := range idents.typeParamIdents {
 		field := ident.Obj.Decl.(*ast.Field) //nolint:forcetypeassert // check is done in identsAndImports
 
 		param := typeParam{
 			name:  ident.Name,
-			typ:   shortTypeName(pass.TypesInfo.TypeOf(field.Type), imports),
+			typ:   shortTypeName(pass.TypesInfo.TypeOf(field.Type), idents.imports),
 			field: field,
 		}
 
 		useLine := pass.Fset.Position(ident.NamePos).Line
 		declLine := pass.Fset.Position(field.Pos()).Line
-		typeParamToDist[param] = useLine - declLine
+		result.typeParamToDist[param] = useLine - declLine
 	}
 
-	return varToDist, paramToDist, returnToDist, typeParamToDist
+	return result
 }
 
-// identsAndImports returns Idents referencing assign statements, value specifications, parameters,
-// return values, and type parameters, respectively, as well as import declarations, and type switch statements.
-func (v *varNameLen) identsAndImports(pass *analysis.Pass) ([]*ast.Ident, []*ast.Ident, []*ast.Ident, []*ast.Ident, //nolint:gocognit,cyclop // this is complex stuff
-	[]*ast.Ident, []importDeclaration, []*ast.TypeSwitchStmt) {
+// identsImportsSwitches returns relevant idents, as well as import declarations and type switch statements.
+func identsImportsSwitches(pass *analysis.Pass, cfg configuration) identsImportsSwitchesResult { //nolint:gocognit,cyclop // this is complex stuff
+	result := identsImportsSwitchesResult{}
+
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector) //nolint:forcetypeassert // inspect.Analyzer always returns *inspector.Inspector
 
 	filter := []ast.Node{
@@ -425,14 +297,6 @@ func (v *varNameLen) identsAndImports(pass *analysis.Pass) ([]*ast.Ident, []*ast
 		(*ast.TypeSwitchStmt)(nil),
 		(*ast.Ident)(nil),
 	}
-
-	assignIdents := []*ast.Ident{}
-	valueSpecIdents := []*ast.Ident{}
-	paramIdents := []*ast.Ident{}
-	returnIdents := []*ast.Ident{}
-	typeParamIdents := []*ast.Ident{}
-	imports := []importDeclaration{}
-	switches := []*ast.TypeSwitchStmt{}
 
 	funcs := []*ast.FuncDecl{}
 	methods := []*ast.FuncDecl{}
@@ -447,7 +311,7 @@ func (v *varNameLen) identsAndImports(pass *analysis.Pass) ([]*ast.Ident, []*ast
 				return
 			}
 
-			imports = append(imports, decl)
+			result.imports = append(result.imports, decl)
 
 		case *ast.FuncDecl:
 			funcs = append(funcs, node2)
@@ -465,7 +329,7 @@ func (v *varNameLen) identsAndImports(pass *analysis.Pass) ([]*ast.Ident, []*ast
 			compositeLits = append(compositeLits, node2)
 
 		case *ast.TypeSwitchStmt:
-			switches = append(switches, node2)
+			result.switches = append(result.switches, node2)
 
 		case *ast.Ident:
 			if node2.Obj == nil {
@@ -478,226 +342,55 @@ func (v *varNameLen) identsAndImports(pass *analysis.Pass) ([]*ast.Ident, []*ast
 
 			switch objDecl := node2.Obj.Decl.(type) {
 			case *ast.AssignStmt:
-				assignIdents = append(assignIdents, node2)
+				result.assignIdents = append(result.assignIdents, node2)
 
 			case *ast.ValueSpec:
-				valueSpecIdents = append(valueSpecIdents, node2)
+				result.valueSpecIdents = append(result.valueSpecIdents, node2)
 
 			case *ast.Field:
 				switch {
-				case isReceiver(objDecl, methods):
-					if !v.checkReceiver {
-						return
-					}
-
-					paramIdents = append(paramIdents, node2)
+				case isParam(objDecl, funcs, funcLits, methods):
+					result.paramIdents = append(result.paramIdents, node2)
 
 				case isReturn(objDecl, funcs, funcLits):
-					if !v.checkReturn {
+					if !cfg.checkReturn {
 						return
 					}
 
-					returnIdents = append(returnIdents, node2)
+					result.returnIdents = append(result.returnIdents, node2)
+
+				case isReceiver(objDecl, methods):
+					if !cfg.checkReceiver {
+						return
+					}
+
+					result.receiverIdents = append(result.receiverIdents, node2)
 
 				case isTypeParam(objDecl, funcs, funcLits):
-					if !v.checkTypeParameters {
+					if !cfg.checkTypeParam {
 						return
 					}
 
-					typeParamIdents = append(typeParamIdents, node2)
-
-				case isParam(objDecl, funcs, funcLits, methods):
-					paramIdents = append(paramIdents, node2)
+					result.typeParamIdents = append(result.typeParamIdents, node2)
 				}
 			}
 		}
 	})
 
-	imports = append(imports, importDeclaration{
+	result.imports = append(result.imports, importDeclaration{
 		path: pass.Pkg.Path(),
 		self: true,
 	})
 
-	sort.Slice(imports, func(a, b int) bool {
+	sort.Slice(result.imports, func(a, b int) bool {
 		// reversed: longest path first
-		return len(imports[a].path) > len(imports[b].path)
+		return len(result.imports[a].path) > len(result.imports[b].path)
 	})
 
-	return assignIdents, valueSpecIdents, paramIdents, returnIdents, typeParamIdents, imports, switches
+	return result
 }
 
-func importSpecToDecl(spec *ast.ImportSpec, imports []*types.Package) (importDeclaration, bool) {
-	path := strings.TrimSuffix(strings.TrimPrefix(spec.Path.Value, "\""), "\"")
-
-	if spec.Name != nil {
-		return importDeclaration{
-			name: spec.Name.Name,
-			path: path,
-		}, true
-	}
-
-	for _, imp := range imports {
-		if imp.Path() == path {
-			return importDeclaration{
-				name: imp.Name(),
-				path: path,
-			}, true
-		}
-	}
-
-	return importDeclaration{}, false
-}
-
-// isTypeAssertOk returns true if v is an "ok" variable that holds the bool return value of a type assertion.
-func (v variable) isTypeAssertOk() bool {
-	if v.name != "ok" {
-		return false
-	}
-
-	if v.assign == nil {
-		return false
-	}
-
-	if len(v.assign.Lhs) != 2 {
-		return false
-	}
-
-	ident, ok := v.assign.Lhs[1].(*ast.Ident)
-	if !ok {
-		return false
-	}
-
-	if ident.Name != "ok" {
-		return false
-	}
-
-	if len(v.assign.Rhs) != 1 {
-		return false
-	}
-
-	if _, ok := v.assign.Rhs[0].(*ast.TypeAssertExpr); !ok {
-		return false
-	}
-
-	return true
-}
-
-// isMapIndexOk returns true if v is an "ok" variable that holds the bool return value of a map index.
-func (v variable) isMapIndexOk() bool {
-	if v.name != "ok" {
-		return false
-	}
-
-	if v.assign == nil {
-		return false
-	}
-
-	if len(v.assign.Lhs) != 2 {
-		return false
-	}
-
-	ident, ok := v.assign.Lhs[1].(*ast.Ident)
-	if !ok {
-		return false
-	}
-
-	if ident.Name != "ok" {
-		return false
-	}
-
-	if len(v.assign.Rhs) != 1 {
-		return false
-	}
-
-	if _, ok := v.assign.Rhs[0].(*ast.IndexExpr); !ok {
-		return false
-	}
-
-	return true
-}
-
-// isChannelReceiveOk returns true if v is an "ok" variable that holds the bool return value of a channel receive.
-func (v variable) isChannelReceiveOk() bool {
-	if v.name != "ok" {
-		return false
-	}
-
-	if v.assign == nil {
-		return false
-	}
-
-	if len(v.assign.Lhs) != 2 {
-		return false
-	}
-
-	ident, ok := v.assign.Lhs[1].(*ast.Ident)
-	if !ok {
-		return false
-	}
-
-	if ident.Name != "ok" {
-		return false
-	}
-
-	if len(v.assign.Rhs) != 1 {
-		return false
-	}
-
-	unary, ok := v.assign.Rhs[0].(*ast.UnaryExpr)
-	if !ok {
-		return false
-	}
-
-	if unary.Op != token.ARROW {
-		return false
-	}
-
-	return true
-}
-
-// isConventional returns true if v matches a conventional Go variable/parameter name and type,
-// such as "ctx context.Context" or "t *testing.T".
-func (v variable) isConventional() bool {
-	for _, decl := range conventionalDecls {
-		if v.match(decl) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// match returns true if v matches decl.
-func (v variable) match(decl declaration) bool {
-	if v.name != decl.name {
-		return false
-	}
-
-	if v.constant != decl.constant {
-		return false
-	}
-
-	if v.constant {
-		return true
-	}
-
-	if v.typ == "" {
-		return false
-	}
-
-	return decl.matchType(v.typ)
-}
-
-// kindName returns "constant" if v.constant==true, else "variable".
-func (v variable) kindName() string {
-	if v.constant {
-		return "constant"
-	}
-
-	return "variable"
-}
-
-// isReceiver returns true if field is a receiver parameter of any of the given methods.
+// isReceiver returns true if field is the receiver of any of the given methods.
 func isReceiver(field *ast.Field, methods []*ast.FuncDecl) bool {
 	for _, m := range methods {
 		for _, recv := range m.Recv.List {
@@ -739,7 +432,7 @@ func isReturn(field *ast.Field, funcs []*ast.FuncDecl, funcLits []*ast.FuncLit) 
 	return false
 }
 
-// isParam returns true if field is a parameter of any of the given funcs.
+// isParam returns true if field is a parameter of any of the given funcs or methods.
 func isParam(field *ast.Field, funcs []*ast.FuncDecl, funcLits []*ast.FuncLit, methods []*ast.FuncDecl) bool { //nolint:gocognit,cyclop // it's not that complicated
 	for _, f := range funcs {
 		if f.Type.Params == nil {
@@ -813,58 +506,6 @@ func isTypeSwitchAssign(assign *ast.AssignStmt, switches []*ast.TypeSwitchStmt) 
 	return false
 }
 
-// isConventional returns true if v matches a conventional Go variable/parameter name and type,
-// such as "ctx context.Context" or "t *testing.T".
-func (p parameter) isConventional() bool {
-	for _, decl := range conventionalDecls {
-		if p.match(decl) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// match returns whether p matches decl.
-func (p parameter) match(decl declaration) bool {
-	if p.name != decl.name {
-		return false
-	}
-
-	return decl.matchType(p.typ)
-}
-
-// match returns whether p matches decl.
-func (p typeParam) match(decl declaration) bool {
-	if p.name != decl.name {
-		return false
-	}
-
-	return decl.matchType(p.typ)
-}
-
-// parseDeclaration parses and returns a variable declaration parsed from decl.
-func parseDeclaration(decl string) declaration {
-	if strings.HasPrefix(decl, "const ") {
-		return declaration{
-			name:     strings.TrimPrefix(decl, "const "),
-			constant: true,
-		}
-	}
-
-	parts := strings.SplitN(decl, " ", 2)
-
-	return declaration{
-		name: parts[0],
-		typ:  parts[1],
-	}
-}
-
-// matchType returns true if typ matches d.typ.
-func (d declaration) matchType(typ string) bool {
-	return d.typ == typ
-}
-
 // shortTypeName returns the short name of typ, with respect to imports.
 // For example, if package github.com/matryer/is is imported with alias "x",
 // and typ represents []*github.com/matryer/is.I, shortTypeName will return "[]*x.I".
@@ -888,4 +529,18 @@ func shortTypeName(typ types.Type, imports []importDeclaration) string {
 	}
 
 	return typStr
+}
+
+// checkNameAndDistance returns true if the named ident should be ignored, because its name
+// is "long" enough or its usage distance is to be considered "short", according to cfg.
+func checkNameAndDistance(name string, dist int, cfg configuration) bool {
+	if len([]rune(name)) >= cfg.minNameLength {
+		return true
+	}
+
+	if dist <= cfg.maxDistance {
+		return true
+	}
+
+	return false
 }

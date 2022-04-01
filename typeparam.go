@@ -1,35 +1,26 @@
-//go:build go1.18
-// +build go1.18
-
 package varnamelen
 
-import "go/ast"
+import (
+	"go/ast"
+)
 
-// isTypeParam returns true if field is a type parameter of any of the given funcs.
-func isTypeParam(field *ast.Field, funcs []*ast.FuncDecl, funcLits []*ast.FuncLit) bool { //nolint:gocognit // it's not that complicated
-	for _, f := range funcs {
-		if f.Type.TypeParams == nil {
-			continue
-		}
+// typeParam represents a declared type parameter.
+type typeParam struct {
+	// name is the name of the type parameter.
+	name string
 
-		for _, p := range f.Type.TypeParams.List {
-			if p == field {
-				return true
-			}
-		}
+	// typ is the type of the type parameter.
+	typ string
+
+	// field is the field that declares the type parameter.
+	field *ast.Field
+}
+
+// match returns whether p matches decl.
+func (p typeParam) match(decl identDeclaration) bool {
+	if p.name != decl.name {
+		return false
 	}
 
-	for _, f := range funcLits {
-		if f.Type.TypeParams == nil {
-			continue
-		}
-
-		for _, p := range f.Type.TypeParams.List {
-			if p == field {
-				return true
-			}
-		}
-	}
-
-	return false
+	return decl.matchType(p.typ)
 }

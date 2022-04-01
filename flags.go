@@ -3,13 +3,15 @@ package varnamelen
 import "strings"
 
 // stringsValue is the value of a list-of-strings flag.
+// FIXME: type
 type stringsValue struct {
 	Values []string
 }
 
 // declarationsValue is the value of a list-of-declarations flag.
+// FIXME: type
 type declarationsValue struct {
-	Values []declaration
+	Values []identDeclaration
 }
 
 // Set implements Value.
@@ -36,7 +38,7 @@ func (sv *stringsValue) String() string {
 }
 
 // contains returns true if sv contains s.
-func (sv *stringsValue) contains(s string) bool {
+func (sv stringsValue) contains(s string) bool {
 	for _, v := range sv.Values {
 		if v == s {
 			return true
@@ -55,10 +57,13 @@ func (dv *declarationsValue) Set(values string) error {
 
 	parts := strings.Split(values, ",")
 
-	dv.Values = make([]declaration, len(parts))
+	dv.Values = make([]identDeclaration, len(parts))
 
 	for idx, part := range parts {
-		dv.Values[idx] = parseDeclaration(strings.TrimSpace(part))
+		var err error
+		if dv.Values[idx], err = parseIdentDeclaration(strings.TrimSpace(part)); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -75,10 +80,10 @@ func (dv *declarationsValue) String() string {
 	return strings.Join(parts, ",")
 }
 
-// matchVariable returns true if vari matches any of the declarations in dv.
-func (dv *declarationsValue) matchVariable(vari variable) bool {
+// matchVariable returns true if v matches any of the declarations in dv.
+func (dv declarationsValue) matchVariable(v variable) bool {
 	for _, decl := range dv.Values {
-		if vari.match(decl) {
+		if v.match(decl) {
 			return true
 		}
 	}
@@ -86,10 +91,10 @@ func (dv *declarationsValue) matchVariable(vari variable) bool {
 	return false
 }
 
-// matchParameter returns true if param matches any of the declarations in dv.
-func (dv *declarationsValue) matchParameter(param parameter) bool {
+// matchVariable returns true if c matches any of the declarations in dv.
+func (dv declarationsValue) matchConstant(c constant) bool {
 	for _, decl := range dv.Values {
-		if param.match(decl) {
+		if c.match(decl) {
 			return true
 		}
 	}
@@ -97,10 +102,43 @@ func (dv *declarationsValue) matchParameter(param parameter) bool {
 	return false
 }
 
-// matchParameter returns true if param matches any of the declarations in dv.
-func (dv *declarationsValue) matchTypeParameter(param typeParam) bool {
+// matchParameter returns true if p matches any of the declarations in dv.
+func (dv declarationsValue) matchParameter(p parameter) bool {
 	for _, decl := range dv.Values {
-		if param.match(decl) {
+		if p.match(decl) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// matchParameter returns true if r matches any of the declarations in dv.
+func (dv declarationsValue) matchNamedReturn(r namedReturn) bool {
+	for _, decl := range dv.Values {
+		if r.match(decl) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// matchParameter returns true if r matches any of the declarations in dv.
+func (dv declarationsValue) matchReceiver(r receiver) bool {
+	for _, decl := range dv.Values {
+		if r.match(decl) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// matchParameter returns true if p matches any of the declarations in dv.
+func (dv declarationsValue) matchTypeParameter(p typeParam) bool {
+	for _, decl := range dv.Values {
+		if p.match(decl) {
 			return true
 		}
 	}
