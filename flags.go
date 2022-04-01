@@ -3,13 +3,11 @@ package varnamelen
 import "strings"
 
 // stringsValue is the value of a list-of-strings flag.
-// FIXME: type
 type stringsValue struct {
 	Values []string
 }
 
 // declarationsValue is the value of a list-of-declarations flag.
-// FIXME: type
 type declarationsValue struct {
 	Values []identDeclaration
 }
