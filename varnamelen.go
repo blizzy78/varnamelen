@@ -130,7 +130,7 @@ func NewAnalyzer() *analysis.Analyzer {
 			"to comprehend. Also checks constants, parameters, named return values,\n" +
 			"method receivers, and type parameters",
 
-		Run: func(pass *analysis.Pass) (interface{}, error) {
+		Run: func(pass *analysis.Pass) (any, error) {
 			run(pass, cfg)
 			return nil, nil
 		},
@@ -382,7 +382,7 @@ func identsImportsSwitches(pass *analysis.Pass, cfg configuration) identsImports
 		self: true,
 	})
 
-	sort.Slice(result.imports, func(a, b int) bool {
+	sort.Slice(result.imports, func(a int, b int) bool {
 		// reversed: longest path first
 		return len(result.imports[a].path) > len(result.imports[b].path)
 	})

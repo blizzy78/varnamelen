@@ -1,8 +1,6 @@
 package varnamelen
 
-import (
-	"strings"
-)
+import "strings"
 
 // identDeclaration is an ident declaration.
 type identDeclaration struct {
