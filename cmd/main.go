@@ -1,4 +1,4 @@
-package main
+package main //nolint:revive // don't need docs here
 
 import (
 	"github.com/blizzy78/varnamelen"

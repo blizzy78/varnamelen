@@ -1,28 +1,36 @@
 name: Code Coverage
+
 on: [push, pull_request]
+
 permissions:
   contents: read
   pull-requests: read
+
 jobs:
   coverage:
     name: Check Code Coverage
     runs-on: ubuntu-latest
+
     steps:
-    - name: Install Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.18
-    - name: Checkout Code
-      uses: actions/checkout@v3
-    - name: Get Coverage
-      run: go test -coverprofile coverage.out -covermode count ./...
-    - name: Check Coverage
-      env:
-        THRESHOLD: 85
-      run: |
-            coverage="$(go tool cover -func coverage.out |sed -r -e '/^total:/! d' -e 's|^.*\s([0-9.]+)%.*$|\1|')"
-            ok="$(echo "${coverage}" "${THRESHOLD}" |awk '{print $1 >= $2}')"
-            if [ "${ok}" -ne 1 ] ; then
-              echo 1>&2 "Code coverage does not meet threshold: ${coverage}% < ${THRESHOLD}%"
-              exit 1
-            fi
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.19'
+
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Get Coverage
+        run: go test -coverprofile coverage.out -covermode count ./...
+
+      - name: Check Coverage
+        env:
+          THRESHOLD: 85
+
+        run: |
+              coverage="$(go tool cover -func coverage.out |sed -r -e '/^total:/! d' -e 's|^.*\s([0-9.]+)%.*$|\1|')"
+              ok="$(echo "${coverage}" "${THRESHOLD}" |awk '{print $1 >= $2}')"
+              if [ "${ok}" -ne 1 ] ; then
+                echo 1>&2 "Code coverage does not meet threshold: ${coverage}% < ${THRESHOLD}%"
+                exit 1
+              fi

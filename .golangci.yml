@@ -19,7 +19,6 @@ linters:
     - bodyclose
     - cyclop
     - durationcheck
-    - errname
     - errorlint
     - exportloopref
     - forcetypeassert
@@ -29,7 +28,6 @@ linters:
     - gofmt
     - goprintffuncname
     - gosec
-    - ifshort
     - nakedret
     - nestif
     - nilerr
@@ -50,6 +48,9 @@ linters:
     - wastedassign
     - wrapcheck
     - wsl
+  disable:
+    # broken?
+    - errname
 
 linters-settings:
   gocognit:
@@ -62,7 +63,7 @@ linters-settings:
     require-explanation: true
     require-specific: true
   unused:
-    go: 1.16
+    go: 1.19
   varnamelen:
     check-return: true
     ignore-type-assert-ok: true

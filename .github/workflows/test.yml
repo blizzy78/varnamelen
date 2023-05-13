@@ -1,22 +1,29 @@
 name: Test
+
 on: [push, pull_request]
+
 permissions:
   contents: read
   pull-requests: read
+
 jobs:
   test:
     name: Run Tests
     strategy:
       matrix:
-        go-version: [1.16.x, 1.17.x, 1.18.x]
+        go-version: [1.19.x, 1.20.x]
         os: [ubuntu-latest, macos-latest, windows-latest]
+
     runs-on: ${{ matrix.os }}
+
     steps:
-    - name: Install Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: ${{ matrix.go-version }}
-    - name: Checkout Code
-      uses: actions/checkout@v3
-    - name: Run Tests
-      run: go test ./...
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Run Tests
+        run: go test ./...
