@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/matryer/is v1.4.1
-	golang.org/x/tools v0.9.1
+	golang.org/x/tools v0.9.2
 )
 
 require (
